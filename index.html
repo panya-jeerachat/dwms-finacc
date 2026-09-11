@@ -231,7 +231,7 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 
 <!-- ===== ทะเบียนหนังสือ : บนสุด ===== -->
 <div class="card">
-  <div class="ch">📋 ทะเบียนหนังสือ <small>(<span id="cnt">0</span> รายการ · เรียงจากค้างนานที่สุด) — คลิกแถวเพื่อดูรายละเอียด + QR</small></div>
+  <div class="ch">📋 ทะเบียนหนังสือ <small>(<span id="cnt">0</span> รายการ · เรียงจากเรื่องใหม่ล่าสุด) — คลิกแถวเพื่อดูรายละเอียด + QR</small></div>
   <div class="tools">
     <input id="q" placeholder="🔍 ค้นหา เลขหนังสือ / เรื่อง / ผู้รับเรื่อง / หน่วยงาน…">
     <select id="fst"><option value="">ทุกสถานะ</option></select>
@@ -519,7 +519,7 @@ function render(){
     if(sl==='ok'&&r.over>0)return false;if(sl==='over'&&r.over<=0)return false;if(sl==='120'&&r.elapsed<120)return false;
     if(TIER_F&&r.tier.key!==TIER_F)return false;
     if(d1&&(!r.start||r.start<d1))return false;if(d2&&(!r.start||r.start>d2))return false;return true;
-  }).sort((a,b)=>(a.isDone-b.isDone)||b.elapsed-a.elapsed);
+  }).sort((a,b)=>b.i-a.i);
   $('#cnt').textContent=VIEW.length;
   $('#tb').innerHTML=VIEW.length?VIEW.map((r,i)=>{
     const cur=r.isDone?'✅ เสร็จสิ้นกระบวนการ':'รอ '+(r.steps.find(s=>!s.done&&!s.skip)?.label||'-');
