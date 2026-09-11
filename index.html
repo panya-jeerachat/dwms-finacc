@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ระบบกำกับติดตามหนังสือภายใน | ฝ่ายการเงินและบัญชี EN-MSU</title>
-<link rel="icon" type="image/png" href="logo.png">
+<link rel="icon" type="image/png" href="logo.png" id="favicon">
+<link rel="shortcut icon" type="image/png" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
 <meta name="theme-color" content="#059669">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -153,6 +154,16 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 @media print{body *{visibility:hidden}#a4,#a4 *{visibility:visible}
 #a4{display:block;position:absolute;left:0;top:0;width:210mm;min-height:297mm;padding:16mm 14mm;background:#fff}@page{size:A4;margin:0}}
 #a4 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* พรีวิวเอกสารบนหน้าจอ (ไม่ใช่โหมดพิมพ์จริง) */
+#a4prevBackdrop{position:fixed;inset:0;background:rgba(15,46,29,.6);backdrop-filter:blur(5px);z-index:69;display:none}
+#a4prevBackdrop.show{display:block}
+#a4.preview{display:block;position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:70;
+ width:210mm;max-width:94vw;max-height:92vh;overflow:auto;padding:16mm 14mm;background:#fff;
+ border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.4);animation:pop .3s cubic-bezier(.2,1.2,.3,1)}
+#a4prevClose{display:none;position:absolute;width:32px;height:32px;border-radius:50%;border:0;
+ font-size:16px;cursor:pointer;z-index:2}
+#a4.preview #a4prevClose{display:block}
+@media print{#a4prevClose{display:none!important;visibility:hidden!important}#a4prevBackdrop{display:none!important}}
 #a4 .a4head{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(120deg,#059669,#34d399);
  color:#fff;border-radius:16px;padding:14px 18px}
 #a4 .a4org{display:flex;align-items:center;gap:12px}
@@ -178,7 +189,9 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 #a4 .a4kv dt{color:#5f7a68}#a4 .a4kv dd{font-weight:600;color:#0f2e1d}
 #a4 .a4cert{margin-top:16px;background:#f0fdf4;border:1.5px dashed #34d399;border-radius:14px;padding:13px;font-size:11px;color:#0f2e1d;line-height:1.75}
 #a4 .a4cert b{color:#059669}
-#a4 .a4qrbox{background:#f0fdf4;border:1.5px dashed #34d399;border-radius:16px;padding:16px;text-align:center}
+#a4 .a4qrbox{background:#f0fdf4;border:1.5px dashed #34d399;border-radius:16px;padding:16px;text-align:center;
+ display:flex;flex-direction:column;align-items:center;justify-content:center}
+#a4 .a4qrbox #a4qr{display:flex;justify-content:center;width:100%}
 #a4 .a4qrbox p{font-size:10.5px;color:#5f7a68;margin-top:9px;line-height:1.6}
 #a4 .a4foot{margin-top:18px;font-size:10px;color:#5f7a68;text-align:center}
 .skel{height:15px;background:linear-gradient(90deg,#dcfce7,#fff,#dcfce7);background-size:200% 100%;animation:sh 1.3s infinite;border-radius:6px;margin:9px 0}
@@ -281,6 +294,8 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
     <div class="qrbox"><div id="qr"></div><p>สแกนเพื่อติดตามสถานะเรื่องนี้แบบเรียลไทม์</p>
      <div class="stack">
       <button class="btn" id="bfile">📎 เปิด/ดาวน์โหลดบันทึกข้อความ</button>
+      <button class="btn ghost" onclick="saveQR()">💾 บันทึก QR Code เป็นรูป</button>
+      <button class="btn ghost" onclick="previewA4()">👁️ พรีวิวเอกสาร</button>
       <button class="btn ghost" onclick="printA4()">🖨️ พิมพ์ใบปะหน้า A4</button>
       <button class="btn ghost" onclick="copyLink()">🔗 คัดลอกลิงก์ติดตาม</button></div></div>
     <div class="sec" style="margin-top:17px"><h4>🔄 ไทม์สแตมป์เรียลไทม์</h4><dl class="kv" id="mts"></dl></div>
@@ -290,7 +305,9 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 </div>
 
 <!-- A4 -->
+<div id="a4prevBackdrop" onclick="closePreview()"></div>
 <div id="a4">
+ <button class="x" id="a4prevClose" onclick="closePreview()" style="position:absolute;top:14px;right:14px;background:#0f2e1d33;color:#0f2e1d">✕</button>
  <div class="a4head">
   <div class="a4org"><img src="logo.png" onerror="this.style.display='none'">
    <div><div class="a4orgname">คณะวิศวกรรมศาสตร์ มหาวิทยาลัยมหาสารคาม</div>
@@ -572,10 +589,10 @@ function advice(r){if(r.elapsed>=120)return'ยกระดับรายงา
 const trackLink=r=>location.href.split('#')[0]+'#doc='+encodeURIComponent(r.no);
 function copyLink(){navigator.clipboard.writeText(trackLink(CUR));alert('คัดลอกลิงก์ติดตามแล้ว ✔')}
 function closeM(){$('#ov').classList.remove('show');document.body.style.overflow='';history.replaceState(null,'',location.pathname)}
-document.addEventListener('keydown',e=>e.key==='Escape'&&closeM());
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM();closePreview()}});
 
 /* ========= PRINT ========= */
-function printA4(){const r=CUR;
+function buildA4(r){
  $('#a4no').textContent='เลขที่ '+r.no;
  $('#a4subj').textContent=r.subj;
  $('#a4meta').textContent=`${r.cat} · ${r.dep} · ${fTH(r.start)}`;
@@ -598,7 +615,20 @@ function printA4(){const r=CUR;
   จึงไม่จำเป็นต้องลงลายมือชื่อรับรองบนใบปะหน้านี้ ผู้ตรวจสอบสามารถยืนยันความถูกต้องได้ทันทีจากสถานะล่าสุดผ่าน QR ด้านขวา<br><br>
   เลขอ้างอิงระบบ: <b>${esc(r.no)}</b> · บันทึกล่าสุดในชีต: ${esc(r.updAt||'ตามเวลาซิงก์ระบบ')} · ผู้อัปเดต: ${esc(r.updBy||'ฝ่ายการเงินและบัญชี')}`;
  $('#a4qr').innerHTML='';new QRCode($('#a4qr'),{text:r.file||trackLink(r),width:150,height:150,colorDark:'#059669',colorLight:'#ffffff'});
- $('#a4d').textContent=fFull(new Date());setTimeout(()=>window.print(),260)}
+ $('#a4d').textContent=fFull(new Date());
+}
+function printA4(){if(!CUR)return;closePreview();buildA4(CUR);setTimeout(()=>window.print(),260)}
+function previewA4(){if(!CUR)return;buildA4(CUR);$('#a4').classList.add('preview');
+ $('#a4prevBackdrop').classList.add('show');document.body.style.overflow='hidden'}
+function closePreview(){$('#a4').classList.remove('preview');$('#a4prevBackdrop').classList.remove('show');
+ if(!$('#ov').classList.contains('show'))document.body.style.overflow=''}
+function saveQR(){
+ const box=$('#qr'),el=box.querySelector('canvas')||box.querySelector('img');
+ if(!el)return;
+ const url=el.tagName==='CANVAS'?el.toDataURL('image/png'):el.src;
+ const a=document.createElement('a');a.href=url;a.download=`QR_${CUR?CUR.no:'doc'}.png`;a.click();
+}
+window.addEventListener('beforeprint',()=>{$('#a4').classList.remove('preview');$('#a4prevBackdrop').classList.remove('show')});
 
 /* ========= EXPORT ========= */
 function exportCSV(){
@@ -609,6 +639,18 @@ function exportCSV(){
  a.download=`ติดตามหนังสือ_${new Date().toISOString().slice(0,10)}.csv`;a.click()}
 
 /* ========= BOOT ========= */
+(function(){ // ให้แท็บเบราว์เซอร์ขึ้นโลโก้ EN-MSU เสมอ ถ้าโหลด logo.png ไม่ได้ให้วาดตราสำรอง
+  const probe=new Image();
+  probe.onerror=function(){
+    const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');
+    const g=x.createLinearGradient(0,0,64,64);g.addColorStop(0,'#059669');g.addColorStop(1,'#34d399');
+    x.fillStyle=g;x.beginPath();x.arc(32,32,30,0,Math.PI*2);x.fill();
+    x.fillStyle='#fff';x.font='800 22px Sarabun,sans-serif';x.textAlign='center';x.textBaseline='middle';
+    x.fillText('EN',32,33);
+    document.querySelectorAll('link[rel~="icon"]').forEach(l=>l.href=c.toDataURL('image/png'));
+  };
+  probe.src='logo.png';
+})();
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('th-TH'),1000);
 loadData().then(()=>{const h=decodeURIComponent(location.hash.replace('#doc=',''));
  const r=ROWS.find(x=>x.no===h);if(r)openM(r.i)});
