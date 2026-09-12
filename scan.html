@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DocTrack | สแกนเปลี่ยนสถานะหนังสือ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+ :root{--nv:#0f2d5c;--bl:#1d4ed8}
+ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#0f172a}
+ .card{background:#fff;border:1px solid #e5e9f2;border-radius:16px;box-shadow:0 1px 3px rgba(15,45,92,.05)}
+ .navy{background:var(--nv)}
+ .btn{border-radius:10px;padding:.7rem 1rem;font-size:.9rem;font-weight:600;transition:.15s;width:100%;display:block;text-align:center}
+ .btn-primary{background:var(--bl);color:#fff}.btn-primary:hover{background:#1e40af}
+ .btn-primary:disabled{background:#93a3c2}
+ .btn-ghost{background:#fff;border:1px solid #cbd5e1;color:#334155}.btn-ghost:hover{background:#f1f5f9}
+ .btn-danger{background:#fff1f2;color:#e11d48;border:1px solid #fecdd3}.btn-danger:hover{background:#ffe4e6}
+ .btn-warn{background:#fffbeb;color:#b45309;border:1px solid #fde68a}.btn-warn:hover{background:#fef3c7}
+ .btn-slate{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}.btn-slate:hover{background:#e2e8f0}
+ input{border:1px solid #cbd5e1;border-radius:10px;padding:.6rem .75rem;font-size:.9rem;width:100%;font-family:inherit}
+ input:focus{outline:2px solid var(--bl);outline-offset:1px;border-color:var(--bl)}
+ label{font-size:.8rem;color:#475569;font-weight:500;display:block;margin-bottom:.25rem}
+ .hidden{display:none!important}
+ .spin{animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+ #reader{width:100%;border-radius:14px;overflow:hidden;background:#000}
+ #reader video{border-radius:14px}
+ .stage-row{display:flex;align-items:center;gap:.6rem;padding:.5rem 0;border-bottom:1px solid #f1f5f9}
+ .stage-row:last-child{border-bottom:none}
+ .stage-dot{width:1.9rem;height:1.9rem;border-radius:9999px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+ .badge{display:inline-block;font-size:.72rem;font-weight:600;border-radius:999px;padding:.15rem .55rem}
+</style>
+</head>
+<body>
+
+<!-- ══════════ เข้าสู่ระบบ ══════════ -->
+<div id="loginView" class="min-h-screen flex items-center justify-center px-4">
+ <div class="card w-full max-w-sm p-7">
+  <div class="flex flex-col items-center mb-6">
+   <div class="w-14 h-14 rounded-2xl navy text-white flex items-center justify-center text-2xl shadow mb-3">📷</div>
+   <div class="font-bold text-lg text-center" style="color:var(--nv)">DocTrack</div>
+   <div class="text-xs text-slate-500 text-center mt-0.5">สแกน QR เปลี่ยนสถานะหนังสือ</div>
+  </div>
+  <div id="setupError" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-3 mb-4 leading-relaxed"></div>
+  <div id="loginError" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-3 py-2 mb-4"></div>
+  <form id="loginForm" onsubmit="return doLogin(event)">
+   <div class="mb-3"><label>ชื่อผู้ใช้</label><input id="loginUser" required autocomplete="username"></div>
+   <div class="mb-5"><label>รหัสผ่าน</label><input id="loginPass" type="password" required autocomplete="current-password"></div>
+   <button type="submit" id="loginBtn" class="btn btn-primary">เข้าสู่ระบบ</button>
+  </form>
+  <p class="text-[11px] text-slate-400 text-center mt-4">ระบบจำการเข้าสู่ระบบไว้ 6 ชั่วโมง<br>สแกนเรื่องถัดไปได้เลยโดยไม่ต้องล็อกอินซ้ำ</p>
+ </div>
+</div>
+
+<!-- ══════════ หน้าสแกน ══════════ -->
+<div id="scanView" class="hidden min-h-screen pb-10">
+ <header class="sticky top-0 z-30 navy text-white">
+  <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
+   <div class="flex items-center gap-2">
+    <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center text-lg">📷</div>
+    <div>
+     <div class="font-bold text-sm leading-tight">DocTrack — สแกน</div>
+     <div class="text-[11px] text-white/70 leading-tight" id="meLabel"></div>
+    </div>
+   </div>
+   <button onclick="doLogout()" class="text-xs bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 whitespace-nowrap">ออกจากระบบ</button>
+  </div>
+ </header>
+
+ <main class="max-w-md mx-auto px-4 pt-4">
+  <div id="toast" class="hidden mb-4 text-sm rounded-lg px-3 py-2 border"></div>
+
+  <!-- ขึ้นเฉพาะเมื่อเปิดหน้านี้จากในเว็บแอป Apps Script ซึ่งใช้กล้องไม่ได้ -->
+  <div id="gasNotice" class="hidden card p-4 mb-4" style="background:#fffbeb;border-color:#fde68a;color:#92400e">
+   <div class="font-semibold text-sm mb-1">⚠ หน้านี้เปิดกล้องไม่ได้</div>
+   <div class="text-xs leading-relaxed">
+    ตั้งแต่กุมภาพันธ์ 2569 Google ปิดสิทธิ์ใช้กล้องในหน้าเว็บของ Apps Script ทั้งหมด ซึ่งแก้จากในระบบไม่ได้<br>
+    ให้เปิดหน้าสแกนจากลิงก์เว็บของคณะ (ไฟล์ scan.html) แทน กล้องจะทำงานได้ตามปกติ<br>
+    ระหว่างนี้ยังกรอกหมายเลขหนังสือด้วยมือด้านล่างได้เหมือนเดิม
+   </div>
+  </div>
+
+  <div id="scanBox" class="card p-4 mb-4">
+   <div id="reader" class="hidden mb-3"></div>
+   <div id="camIdle" class="text-center py-6">
+    <div class="text-5xl mb-2">🔳</div>
+    <div class="text-sm text-slate-500 mb-4">เปิดกล้องแล้วส่องไปที่ QR บนหน้าปกหนังสือ</div>
+   </div>
+   <button id="camBtn" onclick="toggleScanner()" class="btn btn-primary">เปิดกล้องสแกน</button>
+   <div id="camError" class="hidden mt-3 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 leading-relaxed"></div>
+  </div>
+
+  <div class="card p-4 mb-4">
+   <label>หรือกรอกหมายเลขหนังสือเอง</label>
+   <div class="flex gap-2">
+    <input id="manualNo" placeholder="เช่น 12/2569 หรือ อว 0605.14/012"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();manualLookup();}">
+    <button onclick="manualLookup()" class="btn btn-ghost" style="width:auto;white-space:nowrap">ค้นหา</button>
+   </div>
+  </div>
+
+  <div id="resultBox" class="hidden"></div>
+ </main>
+</div>
+
+<script>
+/* ==========================================================================
+   หน้าสแกน QR — ไฟล์เดียว ใช้ได้ 2 ที่
+     (ก) วางเป็นไฟล์ชื่อ Scan ใน Apps Script → ใช้ได้ แต่เปิดกล้องไม่ได้
+     (ข) วางเป็นไฟล์ scan.html บนเว็บของคุณ → กล้องทำงานปกติ ★ แนะนำ
+   ------------------------------------------------------------------------
+   ★ ถ้าใช้แบบ (ข) ต้องกรอก API_URL ด้านล่างนี้จุดเดียว
+   ========================================================================== */
+const CONFIG = {
+  // URL เว็บแอปที่ได้จากขั้นตอน Deploy ของ Apps Script (ลงท้ายด้วย /exec)
+  // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbxxxxxxxxxxxx/exec'
+  API_URL: ''
+};
+
+/* ---------- ตรวจว่ากำลังทำงานอยู่ที่ไหน ---------- */
+const IN_GAS = !!(typeof google !== 'undefined' && google.script && google.script.run);
+
+let TOKEN = '';
+try { TOKEN = localStorage.getItem('dt_scan_token') || ''; } catch (e) { TOKEN = ''; }
+let ME = '', ALL_STAGES = [], MY_STAGES = [], IS_ADMIN = false, SKIP = 'ไม่ได้ผ่านฝ่ายนี้';
+let html5QrCode = null, scanning = false, currentDoc = null, pendingNo = '';
+
+/* ---------- เรียกใช้งานฝั่งเซิร์ฟเวอร์ (เลือกช่องทางให้อัตโนมัติ) ---------- */
+function call(fn, args, onOk, onErr){
+  const fail = msg => { if (onErr) onErr(msg); };
+
+  if (IN_GAS) {
+    google.script.run
+      .withSuccessHandler(res => { if (onOk) onOk(res); })
+      .withFailureHandler(e => fail((e && e.message) || String(e)))
+      [fn].apply(null, args);
+    return;
+  }
+
+  if (!CONFIG.API_URL) { fail('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ scan.html'); return; }
+
+  fetch(CONFIG.API_URL, {
+    method: 'POST',
+    // ต้องเป็น text/plain เท่านั้น มิฉะนั้นเบราว์เซอร์จะยิง preflight ซึ่ง Apps Script รับไม่ได้
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn: fn, args: args })
+  })
+  .then(r => r.json())
+  .then(r => { if (r && r.ok) { if (onOk) onOk(r.data); } else fail((r && r.message) || 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง'); })
+  .catch(e => fail('ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบ API_URL และการตั้งค่า Deploy (' + (e.message || e) + ')'));
+}
+
+/* ---------- เริ่มทำงาน ---------- */
+(function init(){
+  if (IN_GAS) document.getElementById('gasNotice').classList.remove('hidden');
+  if (!IN_GAS && !CONFIG.API_URL) {
+    const box = document.getElementById('setupError');
+    box.innerHTML = '<b>ยังตั้งค่าไม่ครบ</b><br>เปิดไฟล์ scan.html ด้วยโปรแกรมแก้ไขข้อความ '
+      + 'แล้วกรอก URL ของเว็บแอป (ลงท้ายด้วย /exec) ลงในช่อง API_URL';
+    box.classList.remove('hidden');
+    document.getElementById('loginBtn').disabled = true;
+    return;
+  }
+  readDocNoFromUrl();
+  if (TOKEN) boot(); else showLogin();
+})();
+
+/* อ่านหมายเลขหนังสือที่ติดมากับลิงก์ เช่น scan.html?no=12/2569 หรือ #doc=12/2569
+   ใช้ตอนสแกน QR ด้วยแอปกล้องของเครื่องแล้วกดลิงก์เข้ามาโดยตรง */
+function readDocNoFromUrl(){
+  if (IN_GAS && google.script.url) {
+    google.script.url.getLocation(function(loc){
+      const no = (loc && loc.parameter && loc.parameter.no) || '';
+      if (no) prefill(no);
+    });
+    return;
+  }
+  try {
+    const u = new URL(location.href);
+    let no = u.searchParams.get('no') || '';
+    if (!no && location.hash.indexOf('#doc=') === 0) no = decodeURIComponent(location.hash.slice(5));
+    if (no) prefill(no);
+  } catch (e) {}
+}
+function prefill(no){
+  const el = document.getElementById('manualNo');
+  if (el) el.value = no;
+  if (TOKEN && !document.getElementById('scanView').classList.contains('hidden')) lookup(no, false);
+  else pendingNo = no;
+}
+
+function showLogin(){
+  document.getElementById('loginView').classList.remove('hidden');
+  document.getElementById('scanView').classList.add('hidden');
+}
+
+function doLogin(ev){
+  ev.preventDefault();
+  const btn = document.getElementById('loginBtn'), err = document.getElementById('loginError');
+  err.classList.add('hidden'); btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ…';
+  const finish = () => { btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ'; };
+  call('login',
+    [document.getElementById('loginUser').value.trim(), document.getElementById('loginPass').value],
+    res => {
+      finish();
+      if (!res || !res.ok) { err.textContent = (res && res.message) || 'เข้าสู่ระบบไม่สำเร็จ'; err.classList.remove('hidden'); return; }
+      TOKEN = res.token;
+      try { localStorage.setItem('dt_scan_token', TOKEN); } catch (e) {}
+      boot();
+    },
+    msg => { finish(); err.textContent = msg; err.classList.remove('hidden'); }
+  );
+  return false;
+}
+
+function doLogout(){
+  stopScanner();
+  call('logout', [TOKEN]);
+  try { localStorage.removeItem('dt_scan_token'); } catch (e) {}
+  TOKEN = ''; currentDoc = null;
+  const box = document.getElementById('resultBox');
+  box.innerHTML = ''; box.classList.add('hidden');
+  showLogin();
+}
+
+function boot(){
+  call('getScanBootstrap', [TOKEN], cfg => {
+    ME = cfg.displayName; MY_STAGES = cfg.myStages; ALL_STAGES = cfg.allStages;
+    IS_ADMIN = !!cfg.isAdmin; SKIP = cfg.skipText || SKIP;
+    const scope = MY_STAGES.length
+      ? (IS_ADMIN ? 'ประทับได้ทุกขั้นตอน' : MY_STAGES.length + ' ขั้นตอนที่รับผิดชอบ')
+      : 'ยังไม่ได้กำหนดขั้นตอน';
+    document.getElementById('meLabel').textContent = ME + ' · ' + scope;
+    document.getElementById('loginView').classList.add('hidden');
+    document.getElementById('scanView').classList.remove('hidden');
+    if (pendingNo) { const n = pendingNo; pendingNo = ''; lookup(n, false); }
+  }, msg => {
+    try { localStorage.removeItem('dt_scan_token'); } catch (e) {}
+    TOKEN = ''; showLogin();
+    const err = document.getElementById('loginError');
+    err.textContent = msg; err.classList.remove('hidden');
+  });
+}
+
+function toast(msg, ok){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'mb-4 text-sm rounded-lg px-3 py-2 border ' + (ok
+    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+    : 'bg-rose-50 border-rose-200 text-rose-700');
+  t.scrollIntoView({behavior:'smooth', block:'nearest'});
+  clearTimeout(window._toastT);
+  window._toastT = setTimeout(()=>t.classList.add('hidden'), 5000);
+}
+
+/* ══════════ กล้อง ══════════ */
+function toggleScanner(){ scanning ? stopScanner() : startScanner(); }
+
+function camFail(message){
+  scanning = false;
+  document.getElementById('reader').classList.add('hidden');
+  document.getElementById('camIdle').classList.remove('hidden');
+  document.getElementById('camBtn').textContent = 'เปิดกล้องสแกน';
+  const errEl = document.getElementById('camError');
+  errEl.innerHTML = message;
+  errEl.classList.remove('hidden');
+}
+
+function startScanner(){
+  document.getElementById('camError').classList.add('hidden');
+
+  if (typeof Html5Qrcode === 'undefined') {
+    camFail('โหลดตัวอ่าน QR ไม่สำเร็จ — ตรวจสอบว่าเครื่องต่ออินเทอร์เน็ตอยู่ แล้วรีเฟรชหน้าใหม่');
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    camFail(IN_GAS
+      ? '<b>หน้านี้ใช้กล้องไม่ได้</b><br>Google ปิดสิทธิ์กล้องในหน้าเว็บของ Apps Script ตั้งแต่ ก.พ. 2569 '
+        + 'ให้เปิดหน้าสแกนจากลิงก์เว็บของคณะ (scan.html) แทน หรือกรอกหมายเลขหนังสือด้วยมือด้านล่าง'
+      : 'เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง หรือหน้าเว็บไม่ได้เปิดผ่าน https:// '
+        + '(ถ้าเปิดไฟล์จากเครื่องโดยตรงจะใช้กล้องไม่ได้ ต้องอัปโหลดขึ้นเว็บก่อน)');
+    return;
+  }
+
+  html5QrCode = new Html5Qrcode('reader');
+  document.getElementById('reader').classList.remove('hidden');
+  document.getElementById('camIdle').classList.add('hidden');
+  document.getElementById('camBtn').textContent = 'ปิดกล้อง';
+  scanning = true;
+
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    decodedText => onScanSuccess(decodedText),
+    () => {}
+  ).catch(e => {
+    const name = (e && e.name) || '';
+    const raw = (e && e.message) || String(e);
+    let hint;
+    if (IN_GAS || /Permissions policy|not allowed in this document/i.test(raw)) {
+      hint = '<b>หน้านี้ไม่ได้รับอนุญาตให้ใช้กล้อง</b><br>'
+           + 'Google ปิดสิทธิ์กล้องในหน้าเว็บของ Apps Script ตั้งแต่ ก.พ. 2569 ซึ่งแก้จากในระบบไม่ได้<br>'
+           + 'ให้เปิดหน้าสแกนจากลิงก์เว็บของคณะ (ไฟล์ scan.html) แทน';
+    } else if (name === 'NotAllowedError' || /denied/i.test(raw)) {
+      hint = '<b>ยังไม่ได้อนุญาตให้ใช้กล้อง</b><br>'
+           + 'แตะไอคอน 🔒 หรือ ⓘ ข้างช่องที่อยู่เว็บ → การตั้งค่าเว็บไซต์ → กล้อง → อนุญาต แล้วรีเฟรชหน้านี้';
+    } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      hint = '<b>ไม่พบกล้องหลังของเครื่อง</b><br>ลองใช้เครื่องที่มีกล้องหลัง หรือกรอกหมายเลขหนังสือด้วยมือด้านล่าง';
+    } else if (name === 'NotReadableError') {
+      hint = '<b>กล้องถูกแอปอื่นใช้อยู่</b><br>ปิดแอปกล้องหรือแท็บอื่นที่เปิดกล้องค้างไว้ แล้วลองใหม่';
+    } else {
+      hint = 'เปิดกล้องไม่สำเร็จ: ' + raw + '<br>ระหว่างนี้กรอกหมายเลขหนังสือด้วยมือด้านล่างได้';
+    }
+    camFail(hint);
+  });
+}
+
+function stopScanner(){
+  if (html5QrCode && scanning) html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{});
+  scanning = false;
+  document.getElementById('reader').classList.add('hidden');
+  document.getElementById('camIdle').classList.remove('hidden');
+  document.getElementById('camBtn').textContent = 'เปิดกล้องสแกน';
+}
+
+function onScanSuccess(decodedText){
+  if (!scanning) return;
+  scanning = false;
+  if (navigator.vibrate) navigator.vibrate(80);
+  if (html5QrCode) { try { html5QrCode.pause(true); } catch (e) {} }
+  lookup(decodedText, true);
+}
+
+function manualLookup(){
+  const v = document.getElementById('manualNo').value.trim();
+  if (!v) { toast('กรอกหมายเลขหนังสือก่อนค้นหา', false); return; }
+  lookup(v, false);
+}
+
+/* ══════════ ค้นหา / แสดงผล ══════════ */
+function lookup(raw, fromCamera){
+  const box = document.getElementById('resultBox');
+  box.classList.remove('hidden');
+  box.innerHTML = '<div class="card p-6 text-center text-slate-500 text-sm"><span class="inline-block spin">⏳</span> กำลังค้นหา…</div>';
+  call('scanLookup', [TOKEN, raw], doc => {
+    currentDoc = doc;
+    renderResult(doc);
+    if (fromCamera) resumeCameraAfterDelay();
+  }, msg => {
+    box.innerHTML = ''; box.classList.add('hidden');
+    toast(msg, false);
+    if (/เซสชัน/.test(msg)) {
+      try { localStorage.removeItem('dt_scan_token'); } catch (e) {}
+      TOKEN = ''; showLogin(); return;
+    }
+    if (fromCamera) resumeCameraAfterDelay();
+  });
+}
+
+function resumeCameraAfterDelay(){
+  setTimeout(()=>{ if (html5QrCode && !scanning) { try { html5QrCode.resume(); scanning = true; } catch(e){} } }, 1500);
+}
+
+function stageState(doc, key){
+  const v = String(doc.owners[key] || '').trim();
+  if (v === SKIP) return 'skip';
+  if (v) return 'done';
+  if (doc.nextStage === key) return 'next';
+  return 'wait';
+}
+
+function renderResult(doc){
+  const box = document.getElementById('resultBox');
+  box.classList.remove('hidden');
+
+  const statusColor = {
+    'ดำเนินการ': 'bg-blue-50 text-blue-700 border border-blue-200',
+    'แก้ไข': 'bg-amber-50 text-amber-700 border border-amber-200',
+    'สำเร็จ': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    'ยกเลิก': 'bg-rose-50 text-rose-700 border border-rose-200'
+  }[doc.status] || 'bg-slate-100 text-slate-600 border border-slate-200';
+
+  const stagesHtml = ALL_STAGES.map((s,i)=>{
+    const st = stageState(doc, s.key);
+    const dot = st === 'done' ? '✅' : (st === 'skip' ? '➖' : s.icon);
+    const dotBg = st === 'done' ? 'bg-emerald-100' : (st === 'skip' ? 'bg-slate-100'
+      : (st === 'next' ? 'bg-blue-100' : 'bg-slate-50'));
+    const sub = st === 'done' ? '<div class="text-xs text-slate-500">' + escapeHtml(doc.owners[s.key]) + '</div>'
+      : st === 'skip' ? '<div class="text-xs text-slate-400 italic">ไม่ได้ผ่านฝ่ายนี้</div>'
+      : st === 'next' ? '<div class="text-xs text-blue-600 font-medium">รอดำเนินการอยู่ที่นี่</div>'
+      : '<div class="text-xs text-slate-400">ยังไม่ถึงคิว</div>';
+    return '<div class="stage-row">'
+      + '<div class="stage-dot ' + dotBg + '">' + dot + '</div>'
+      + '<div class="flex-1"><div class="text-sm font-medium">' + (i+1) + '. ' + escapeHtml(s.label) + '</div>' + sub + '</div>'
+      + '</div>';
+  }).join('');
+
+  let actionsHtml = '';
+  if (doc.actionable && doc.actionable.length) {
+    actionsHtml = doc.actionable.map(key=>{
+      const s = ALL_STAGES.find(x=>x.key===key) || {label:key, stampAs:'NAME'};
+      const suggested = (doc.suggest && doc.suggest[key]) || ME;
+      const hint = s.stampAs === 'ISSUE_NO' ? 'เลขที่หนังสือที่ออกให้' : 'ข้อความที่จะประทับลงชีต';
+      return '<div class="card p-4 mb-3">'
+        + '<div class="font-semibold text-sm mb-2">' + (s.icon||'') + ' ' + escapeHtml(s.label) + '</div>'
+        + '<label>' + hint + '</label>'
+        + '<input id="val_' + cssId(key) + '" value="' + escapeHtml(suggested) + '" class="mb-3">'
+        + '<button class="btn btn-primary mb-2" onclick="doStamp(\'' + jsEsc(key) + '\',\'PASS\')">✔ ประทับผ่าน</button>'
+        + '<button class="btn btn-slate" onclick="doStamp(\'' + jsEsc(key) + '\',\'SKIP\')">➖ เรื่องนี้ไม่ผ่านฝ่ายนี้</button>'
+        + '</div>';
+    }).join('');
+
+    const firstKey = doc.actionable[0];
+    actionsHtml += '<button class="btn btn-warn mb-2" onclick="doStamp(\'' + jsEsc(firstKey) + '\',\'REJECT\')">↩ ตีกลับให้แก้ไข</button>';
+    if (doc.actionable.indexOf('คณบดี') !== -1 || IS_ADMIN) {
+      const cancelKey = doc.actionable.indexOf('คณบดี') !== -1 ? 'คณบดี' : firstKey;
+      actionsHtml += '<button class="btn btn-danger mb-2" onclick="doStamp(\'' + jsEsc(cancelKey) + '\',\'CANCEL\')">✕ ยกเลิกเรื่อง</button>';
+    }
+  } else if (doc.blockReason) {
+    actionsHtml = '<div class="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 text-center mb-2">'
+      + escapeHtml(doc.blockReason) + '</div>';
+  }
+
+  const reasonBox = (doc.status==='แก้ไข'||doc.status==='ยกเลิก')
+    ? '<div id="scanReasonBox" class="card p-4 mb-4" style="background:#fff1f2;border-color:#fecdd3;color:#be123c">⏳ กำลังโหลดเหตุผล…</div>'
+    : '';
+
+  const fileLink = doc.file
+    ? '<a href="' + escapeHtml(doc.file) + '" target="_blank" rel="noopener" class="text-xs text-blue-600 underline">📎 เปิดไฟล์หนังสือ</a>'
+    : '';
+
+  box.innerHTML =
+    '<div class="card p-4 mb-4">'
+      + '<div class="flex items-start justify-between gap-2 mb-1">'
+        + '<div class="font-bold text-base leading-snug">' + escapeHtml(doc.no) + '</div>'
+        + '<span class="badge ' + statusColor + '">' + escapeHtml(doc.status || '-') + '</span>'
+      + '</div>'
+      + '<div class="text-sm text-slate-700 mb-3">' + escapeHtml(doc.subject || '-') + '</div>'
+      + '<div class="grid grid-cols-2 gap-1 text-xs text-slate-500">'
+        + '<div>ประเภท: ' + escapeHtml(doc.type || '-') + '</div>'
+        + '<div>วันที่เริ่ม: ' + escapeHtml(doc.startDate || '-') + '</div>'
+        + '<div class="col-span-2">ผู้รับเรื่อง: ' + escapeHtml(doc.recip || '-')
+          + (doc.dept ? ' · ' + escapeHtml(doc.dept) : '') + '</div>'
+        + (doc.note ? '<div class="col-span-2">หมายเหตุ: ' + escapeHtml(doc.note) + '</div>' : '')
+      + '</div>'
+      + (fileLink ? '<div class="mt-2">' + fileLink + '</div>' : '')
+    + '</div>'
+    + reasonBox
+    + '<div class="card p-4 mb-4">' + stagesHtml + '</div>'
+    + '<div class="mb-6">' + actionsHtml + '</div>'
+    + '<button class="btn btn-ghost" onclick="clearResult()">สแกนเรื่องถัดไป</button>';
+
+  if (reasonBox) loadScanReason(doc.no);
+}
+
+/* ══════════ เหตุผลตีกลับ/ยกเลิกล่าสุด ══════════ */
+function loadScanReason(no){
+  call('getDocReason', [TOKEN, no], data => {
+    const el = document.getElementById('scanReasonBox');
+    if (!el) return;
+    if (!data) { el.remove(); return; }
+    const icon = data.action === 'ยกเลิกเรื่อง' ? '✕' : '↩';
+    el.innerHTML = '<div class="font-semibold mb-0.5">' + icon + ' เหตุผลที่'
+      + (data.action === 'ยกเลิกเรื่อง' ? 'ยกเลิกเรื่อง' : 'ตีกลับให้แก้ไข') + '</div>'
+      + '<div>' + (data.note ? escapeHtml(data.note) : '— ไม่ได้ระบุเหตุผลไว้ —') + '</div>'
+      + '<div class="text-xs mt-1" style="opacity:.75">จากขั้นตอน: ' + escapeHtml(data.stage || '-')
+      + ' · เมื่อ ' + escapeHtml(data.time || '-') + '</div>';
+  }, msg => {
+    const el = document.getElementById('scanReasonBox');
+    if (el) el.innerHTML = '<span class="text-xs">โหลดเหตุผลไม่สำเร็จ: ' + escapeHtml(msg) + '</span>';
+  });
+}
+
+function clearResult(){
+  currentDoc = null;
+  const box = document.getElementById('resultBox');
+  box.classList.add('hidden'); box.innerHTML = '';
+  document.getElementById('manualNo').value = '';
+  if (html5QrCode && !scanning) { try { html5QrCode.resume(); scanning = true; } catch(e){} }
+}
+
+function doStamp(stageKey, action){
+  if (!currentDoc) return;
+  let note = '', value = '';
+
+  if (action === 'PASS') {
+    const el = document.getElementById('val_' + cssId(stageKey));
+    value = el ? el.value.trim() : '';
+    if (!value) { toast('กรอกข้อความที่จะประทับก่อน', false); return; }
+  }
+  if (action === 'SKIP') {
+    if (!confirm('บันทึกว่าเรื่อง ' + currentDoc.no + ' ไม่ต้องผ่านขั้นตอน "' + stageKey + '"?')) return;
+  }
+  if (action === 'REJECT' || action === 'CANCEL') {
+    note = window.prompt(action === 'REJECT' ? 'เหตุผลที่ตีกลับ (ไม่บังคับ)' : 'เหตุผลที่ยกเลิก (ไม่บังคับ)', '') || '';
+    const msg = action === 'REJECT'
+      ? 'ยืนยันตีกลับเรื่อง ' + currentDoc.no + ' ให้แก้ไข?'
+      : 'ยืนยันยกเลิกเรื่อง ' + currentDoc.no + '? การกระทำนี้ย้อนกลับไม่ได้';
+    if (!window.confirm(msg)) return;
+  }
+
+  const box = document.getElementById('resultBox');
+  box.style.opacity = '.5'; box.style.pointerEvents = 'none';
+  const restore = () => { box.style.opacity = '1'; box.style.pointerEvents = 'auto'; };
+  call('stampStage', [TOKEN, currentDoc.no, stageKey, action, note, value],
+    res => { restore(); toast(res.message, true); clearResult(); },
+    msg => { restore(); toast(msg, false); });
+}
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function jsEsc(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g, "\\'"); }
+// แปลงชื่อขั้นตอนภาษาไทยให้เป็น id ที่ปลอดภัยสำหรับ getElementById
+function cssId(s){ let h = 0; const str = String(s); for (let i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) | 0; return 's' + Math.abs(h); }
+</script>
+</body>
+</html>
