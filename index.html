@@ -331,10 +331,36 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 </div>
 
 <script>
-/* ========= CONFIG ========= */
-const SHEET_ID='13zXN9zguvyy_IkQtw2NGnvmzpH8SRL2LNATokCOdRh4', GID='0', SLA=7;
+/* ==========================================================================
+   ระบบกำกับติดตามหนังสือภายใน — ฝ่ายการเงินและบัญชี คณะวิศวกรรมศาสตร์ มมส.
+   แดชบอร์ดอ่านข้อมูลสดจาก Google Sheets ทุก 45 วินาที
+   ------------------------------------------------------------------------
+   ★ จุดเดียวที่ต้องแก้ = กล่อง CONFIG ด้านล่างนี้
+   ========================================================================== */
+const CONFIG = {
+  // รหัสชีต (คัดลอกจาก URL ของ Google Sheets ช่วงระหว่าง /d/ กับ /edit)
+  SHEET_ID: '13zXN9zguvyy_IkQtw2NGnvmzpH8SRL2LNATokCOdRh4',
+  GID: '0',                 // แท็บ "ชีต1"
+  SLA: 7,                   // มาตรฐานการเดินหนังสือ (วันทำการ)
+
+  // ลิงก์สาธารณะของหน้านี้ (เช่น https://ชื่อผู้ใช้.github.io/doctrack/)
+  // ใส่ไว้เพื่อให้ QR ชี้มาที่ลิงก์จริงเสมอ แม้จะเปิดไฟล์จากเครื่อง
+  // เว้นว่าง = ใช้ที่อยู่ของหน้าที่กำลังเปิดอยู่
+  PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
+
+  // ลิงก์เว็บแอป Apps Script (ได้จากขั้นตอน Deploy) เว้นว่าง = ซ่อนปุ่ม
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbxWLeirVVA3eDp59JcENEDnDoeuC0PuoE0omyV3-5FkPqxI-qzC6WhRbhSzjUgZJqcz/exec'
+};
+
+const SHEET_ID = CONFIG.SHEET_ID, GID = CONFIG.GID, SLA = CONFIG.SLA;
 const PAPER=10, CO2=0.0086, MINS=45;
-const STEPS=['ผู้รับ','ฝ่ายควบคุมงบประมาณ','หัวหน้ากลุ่มงาน','ฝ่ายบุคคล','หัวหน้าสำนักงานเลขานุการคณบดี','ผู้บริหาร','คณบดี','ธุรการออกเลขหนังสือ','คืนเรื่องให้ฝ่ายการเงิน'];
+
+/* ลำดับ 9 ขั้นตอน — ต้องเรียงตรงกับคอลัมน์ F ถึง N ในชีต */
+const STEPS=['ผู้รับ','ฝ่ายควบคุมงบประมาณ','หัวหน้ากลุ่มงาน','ฝ่ายบุคคล','หัวหน้าสำนักงานเลขานุการคณบดี',
+             'ผู้บริหาร','คณบดี','ธุรการออกเลขหนังสือ','คืนเรื่องให้ฝ่ายการเงิน'];
+const STEP_COLS=[6,7,8,9,10,11,12,13,14];   // ตำแหน่งคอลัมน์ของแต่ละขั้นตอน (A=1)
+const NSTEP=STEPS.length;
+
 const TIERS=[{min:120,cls:'p120',txt:'⚠ ควรติดตามเร่งด่วน (≥120 วัน)',key:'120',c:'#dc2626'},
 {min:90,cls:'p90',txt:'วิกฤตสูง (≥90 วัน)',key:'90',c:'#7f1d1d'},
 {min:60,cls:'p60',txt:'วิกฤต (≥60 วัน)',key:'60',c:'#b91c1c'},
@@ -348,10 +374,17 @@ let ROWS=[],VIEW=[],CUR=null,TIER_F='';
 /* ========= UTILS ========= */
 const $=s=>document.querySelector(s);
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const nz=v=>v!=null&&String(v).trim()!==''&&!/ไม่ได้.{0,2}ผ่านฝ่ายนี้/.test(String(v));
+
+/* ลบอักขระล่องหน (zero-width space) ที่มักติดมาเวลาคัดลอกข้อความลงชีต
+   ถ้าไม่ลบ ช่องที่ดูเหมือนว่างจะถูกนับว่า "ผ่านแล้ว" ทำให้ความคืบหน้าผิด */
+const ZW=/[\u200B-\u200D\uFEFF\u00AD]/g;
+const clean=v=>v==null?'':String(v).replace(ZW,'').replace(/\u00A0/g,' ').trim();
+const SKIP_RE=/ไม่ได้.{0,2}ผ่านฝ่ายนี้/;
+const nz=v=>{const s=clean(v);return s!==''&&!SKIP_RE.test(s)};
+
 function pDate(v){if(!v)return null;if(v instanceof Date)return v;
  let m=String(v).match(/^Date\((\d+),(\d+),(\d+)/);if(m)return new Date(+m[1],+m[2],+m[3]);
- m=String(v).trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+ m=clean(v).match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
  if(m){let y=+m[3];if(y>2400)y-=543;return new Date(y,+m[2]-1,+m[1])}
  const d=new Date(v);return isNaN(d)?null:d}
 const fTH=d=>d?d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}):'-';
@@ -361,7 +394,7 @@ const tierOf=n=>TIERS.find(t=>n>=t.min);
 const nf=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
 function conn(ok,msg){$('#ld').classList.toggle('bad',!ok);$('#conn').textContent=msg}
 
-/* ========= REALTIME LOAD (3 fallbacks) ========= */
+/* ========= โหลดข้อมูลสด (มีทางสำรอง 3 ชั้น) ========= */
 async function loadData(manual){
   const stamp=Date.now();
   // 1) gviz JSON
@@ -378,9 +411,9 @@ async function loadData(manual){
     const csv=await (await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}&_=${stamp}`)).text();
     build(csv2arr(csv)); conn(true,'เชื่อมต่อสด (CSV)'); return done(manual);
   }catch(e){}
-  // 3) JSONP proxy
+  // 3) ผ่านตัวกลาง
   try{
-    const txt=await jsonp(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`)}`);
+    const txt=await (await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`)}`)).text();
     build(csv2arr(txt)); conn(true,'เชื่อมต่อสด (proxy)'); return done(manual);
   }catch(e){
     conn(false,'เชื่อมต่อไม่ได้');
@@ -389,7 +422,6 @@ async function loadData(manual){
 }
 function done(m){const t=new Date().toLocaleTimeString('th-TH');$('#conn').textContent+=' · '+t;
   if(m)$('#conn').animate([{opacity:.2},{opacity:1}],320)}
-function jsonp(url){return fetch(url).then(r=>r.text())}
 function csv2arr(s){const r=[];let f='',row=[],q=false;
  for(let i=0;i<s.length;i++){const c=s[i];
   if(q){if(c==='"'&&s[i+1]==='"'){f+='"';i++}else if(c==='"'){q=false}else f+=c}
@@ -397,25 +429,50 @@ function csv2arr(s){const r=[];let f='',row=[],q=false;
  if(f||row.length){row.push(f);r.push(row)}
  return r.filter(x=>x.some(v=>String(v).trim()))}
 
-/* ========= BUILD ========= */
+/* ========= แปลงข้อมูลดิบเป็นรายการหนังสือ ========= */
 function build(cells){
   const now=new Date();
-  // ตัดแถวหัวตาราง (ถ้ามีคำว่า "เรื่อง"/"วันที่เริ่มงาน")
-  if(cells.length&&/วันที่เริ่ม|หมายเลขหนังสือ/.test(String(cells[0]&&cells[0][0])+String(cells[0]&&cells[0][1])))cells=cells.slice(1);
+  // ตัดแถวหัวตารางออก
+  if(cells.length&&/วันที่เริ่ม|หมายเลขหนังสือ/.test(clean(cells[0]&&cells[0][0])+clean(cells[0]&&cells[0][1])))cells=cells.slice(1);
+
   ROWS=cells.map((c,i)=>{
-    const g=n=>c[n-1]??null;
-    if(!nz(g(3)))return null;
-    const start=pDate(g(1)),fin=pDate(g(19));
-    const steps=[6,7,8,9,10,11,12,13,14].map((n,k)=>{const raw=g(n);
-      return {label:STEPS[k],val:raw,done:nz(raw),skip:/ไม่ได้.{0,2}ผ่านฝ่ายนี้/.test(String(raw||''))}});
-    const status=(g(15)||'ดำเนินการ').trim();
+    const g=n=>clean(c[n-1]);
+    if(!g(3))return null;                       // ไม่มีชื่อเรื่อง = ไม่ใช่แถวข้อมูล
+
+    const regNo=g(2)||'-';                      // B  หมายเลขหนังสือ (เลขทะเบียน คงที่ตลอดอายุเรื่อง)
+    const issueNo=g(13);                        // M  เลขที่ธุรการออกให้ (มีทีหลัง)
+    const start=pDate(c[0]),fin=pDate(c[18]);   // A  วันที่เริ่มงาน · S วันที่งานสำเร็จ
+
+    const steps=STEP_COLS.map((n,k)=>{
+      const raw=g(n);
+      return {label:STEPS[k],val:raw,done:nz(raw),skip:SKIP_RE.test(raw)};
+    });
+
+    const status=g(15)||'ดำเนินการ';            // O สถานะ
     const isDone=/สำเร็จ|เสร็จ|อนุมัติแล้ว/.test(status);
-    const elapsed=start?dayDiff(start,isDone&&fin?fin:now):0;
-    return {i,no:g(13)||g(2)||'-',docNo:g(2)||'-',subj:g(3),owner:(g(4)||'ไม่ระบุ').trim(),
-      dep:(g(5)||'ไม่ระบุ').trim(),steps,doneCnt:steps.filter(s=>s.done||s.skip).length,status,isDone,
-      note:g(16)||'',cat:(g(17)||g(26)||'ไม่ระบุประเภท').trim(),file:g(18)||'',start,fin,elapsed,
-      over:Math.max(0,elapsed-SLA),tier:tierOf(elapsed),updAt:g(28)||'',updBy:g(29)||''};
+    const isCancel=/ยกเลิก/.test(status);
+    const closed=isDone||isCancel;
+    const elapsed=start?dayDiff(start,closed&&fin?fin:now):0;
+
+    return {i,
+      key:regNo,                                // ใช้ทำลิงก์ติดตาม / QR (ไม่เปลี่ยนแปลง)
+      no:issueNo||regNo,                        // เลขที่แสดงเป็นหลัก
+      regNo,issueNo,
+      docNo:regNo,                              // เผื่อโค้ดเดิมเรียกใช้
+      subj:g(3),
+      owner:g(4)||'ไม่ระบุ',                     // D ชื่อผู้รับเรื่อง
+      dep:g(5)||'ไม่ระบุ',                       // E จากฝ่าย/ส่วนงาน
+      steps,doneCnt:steps.filter(s=>s.done||s.skip).length,
+      status,isDone,isCancel,closed,
+      note:g(16),                               // P หมายเหตุ
+      cat:g(17)||g(26)||'ไม่ระบุประเภท',          // Q ประเภท · Z หมวดหมู่
+      file:g(18),                               // R ไฟล์ข้อมูล
+      start,fin,elapsed,
+      over:closed?0:Math.max(0,elapsed-SLA),
+      tier:tierOf(elapsed),
+      updAt:g(28),updBy:g(29)};                 // AB อัปเดตล่าสุด · AC ผู้อัปเดต
   }).filter(Boolean);
+
   fillSelects();render();
 }
 
@@ -425,8 +482,8 @@ function count(sel,to,dec=0){const el=$(sel),from=parseFloat(el.dataset.v||0);el
   el.textContent=nf(+(from+(to-from)*e).toFixed(dec));if(p<1)requestAnimationFrame(tick)})(t0)}
 function kpi(){
   const n=ROWS.length,dn=ROWS.filter(r=>r.isDone).length;
-  const run=ROWS.filter(r=>!r.isDone&&!/แก้ไข/.test(r.status)).length;
-  const late=ROWS.filter(r=>r.over>0&&!r.isDone).length;
+  const run=ROWS.filter(r=>!r.closed&&!/แก้ไข/.test(r.status)).length;
+  const late=ROWS.filter(r=>r.over>0&&!r.closed).length;
   const avg=n?ROWS.reduce((s,r)=>s+r.elapsed,0)/n:0;
   count('#k1',n);count('#k2',dn);count('#k3',run);count('#k4',late);
   count('#k5',n*PAPER);count('#k6',n*PAPER*CO2,2);count('#k7',n*MINS);count('#k8',avg,1);
@@ -438,12 +495,12 @@ function kpi(){
     <b style="color:${T.c}">${c}</b><span>${o.t}</span></div>`}).join('');
 }
 
-/* ========= ANALYTICS ========= */
+/* ========= กราฟวิเคราะห์ ========= */
 function analytics(){
-  /* donut สถานะ */
+  /* โดนัทสถานะ */
   const g={};ROWS.forEach(r=>g[r.status]=(g[r.status]||0)+1);
   const ent=Object.entries(g).sort((a,b)=>b[1]-a[1]),tot=ROWS.length||1;
-  const COL={'สำเร็จ':'#10b981','ดำเนินการ':'#3b82f6','แก้ไข':'#f59e0b'};
+  const COL={'สำเร็จ':'#10b981','ดำเนินการ':'#3b82f6','แก้ไข':'#f59e0b','ยกเลิก':'#94a3b8'};
   let off=0,segs='';
   ent.forEach(([k,v],i)=>{const c=COL[k]||PALETTE[i%PALETTE.length],len=v/tot*283;
     segs+=`<circle r="45" cx="60" cy="60" fill="none" stroke="${c}" stroke-width="17"
@@ -456,13 +513,13 @@ function analytics(){
     <div class="lg">${ent.map(([k,v],i)=>`<div><i style="background:${COL[k]||PALETTE[i%PALETTE.length]}"></i>
     ${esc(k)} <b>${v} (${Math.round(v/tot*100)}%)</b></div>`).join('')}
     <div style="border-top:1px solid var(--line);padding-top:8px;color:var(--muted)">
-    ปิดเรื่องแล้ว <b style="color:#10b981">${ROWS.filter(r=>r.isDone).length}</b></div>
-    <div style="color:var(--muted)">ยังอยู่ระหว่างติดตาม <b style="color:#ef4444">${ROWS.filter(r=>!r.isDone).length}</b></div></div>`;
+    ปิดเรื่องแล้ว <b style="color:#10b981">${ROWS.filter(r=>r.closed).length}</b></div>
+    <div style="color:var(--muted)">ยังอยู่ระหว่างติดตาม <b style="color:#ef4444">${ROWS.filter(r=>!r.closed).length}</b></div></div>`;
 
   /* ความคืบหน้าตามลำดับขั้น */
   $('#cSteps').innerHTML=STEPS.map((s,k)=>{
     const p=ROWS.filter(r=>r.steps[k].done).length,pc=ROWS.length?p/ROWS.length*100:0;
-    const stuck=ROWS.filter(r=>!r.isDone&&!r.steps[k].done&&!r.steps[k].skip&&r.steps.slice(0,k).every(x=>x.done||x.skip)).length;
+    const stuck=ROWS.filter(r=>!r.closed&&!r.steps[k].done&&!r.steps[k].skip&&r.steps.slice(0,k).every(x=>x.done||x.skip)).length;
     return `<div class="bar"><div class="bl"><span>${k+1}. ${s}</span>
       ${stuck?`<span style="color:#ef4444;font-size:11.5px">🔴 ค้าง ${stuck}</span>`:''}
       <b>${p}/${ROWS.length}</b></div>
@@ -470,9 +527,9 @@ function analytics(){
     +`<p style="font-size:11.5px;color:var(--muted);margin-top:4px">🔴 = จำนวนเรื่องที่ติดค้างรอขั้นตอนนี้อยู่ (คอขวด)</p>`;
 
   /* ต้องกำกับติดตาม */
-  const w=ROWS.filter(r=>!r.isDone).sort((a,b)=>b.elapsed-a.elapsed);
+  const w=ROWS.filter(r=>!r.closed).sort((a,b)=>b.elapsed-a.elapsed);
   $('#cWatch').innerHTML=w.length?w.map(r=>{
-    const cur=r.steps.find(s=>!s.done&&!s.skip)?.label||'-';
+    const cur=(r.steps.find(s=>!s.done&&!s.skip)||{}).label||'-';
     return `<div class="wi" style="border-left-color:${r.tier.c}" onclick="openM(${r.i})">
       <div class="wt"><b>${esc(r.no)} ${esc(r.subj).slice(0,42)}${r.subj.length>42?'…':''}</b>
       <div class="sub">รอ: ${esc(cur)} · ${esc(r.dep)}</div></div>
@@ -495,7 +552,7 @@ function quickFilter(key,val){
   document.querySelector('.card').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-/* ========= FILTERS ========= */
+/* ========= ตัวกรอง ========= */
 function tierFilter(k){TIER_F=TIER_F===k?'':k;render();
   document.querySelector('.card').scrollIntoView({behavior:'smooth',block:'start'})}
 function fillSelects(){
@@ -507,13 +564,13 @@ function fillSelects(){
 function clearF(){['#q','#fst','#fcat','#fdep','#fown','#fsla','#d1','#d2'].forEach(s=>$(s).value='');TIER_F='';render()}
 document.addEventListener('input',e=>{if(['q','fst','fcat','fdep','fown','fsla','d1','d2'].includes(e.target.id))render()});
 
-/* ========= RENDER ========= */
+/* ========= ตารางทะเบียน ========= */
 function render(){
   const q=$('#q').value.trim().toLowerCase(),st=$('#fst').value,ct=$('#fcat').value,dp=$('#fdep').value,
     ow=$('#fown').value,sl=$('#fsla').value;
   const d1=$('#d1').value?new Date($('#d1').value):null,d2=$('#d2').value?new Date($('#d2').value):null;
   VIEW=ROWS.filter(r=>{
-    if(q&&!`${r.no} ${r.docNo} ${r.subj} ${r.owner} ${r.dep} ${r.cat} ${r.note}`.toLowerCase().includes(q))return false;
+    if(q&&!`${r.regNo} ${r.issueNo} ${r.subj} ${r.owner} ${r.dep} ${r.cat} ${r.note}`.toLowerCase().includes(q))return false;
     if(st&&r.status!==st)return false;if(ct&&r.cat!==ct)return false;
     if(dp&&r.dep!==dp)return false;if(ow&&r.owner!==ow)return false;
     if(sl==='ok'&&r.over>0)return false;if(sl==='over'&&r.over<=0)return false;if(sl==='120'&&r.elapsed<120)return false;
@@ -522,62 +579,65 @@ function render(){
   }).sort((a,b)=>b.i-a.i);
   $('#cnt').textContent=VIEW.length;
   $('#tb').innerHTML=VIEW.length?VIEW.map((r,i)=>{
-    const cur=r.isDone?'✅ เสร็จสิ้นกระบวนการ':'รอ '+(r.steps.find(s=>!s.done&&!s.skip)?.label||'-');
+    const cur=r.isDone?'✅ เสร็จสิ้นกระบวนการ':(r.isCancel?'⛔ ยกเลิกเรื่อง':'รอ '+((r.steps.find(s=>!s.done&&!s.skip)||{}).label||'-'));
     const sc=r.isDone?'t-ok':/แก้ไข/.test(r.status)?'t-fix':/ดำเนิน/.test(r.status)?'t-run':'t-wait';
     const dots=r.steps.map((s,k)=>{
-      const now=!s.done&&!s.skip&&!r.isDone&&r.steps.slice(0,k).every(x=>x.done||x.skip);
+      const now=!s.done&&!s.skip&&!r.closed&&r.steps.slice(0,k).every(x=>x.done||x.skip);
       const cls=s.done?'done':(s.skip?'skip':(now?'now':''));
       const tip=`${k+1}. ${s.label}: ${s.done?'ผ่านแล้ว · '+(s.val||'-'):(s.skip?'ไม่ได้ผ่านฝ่ายนี้':(now?'กำลังรอดำเนินการอยู่':'ยังไม่ถึงขั้นตอนนี้'))}`;
       return `<span class="dstep ${cls}" title="${esc(tip)}"></span>`;
     }).join('');
-    return `<tr style="animation-delay:${i*20}ms" class="${r.over>0&&!r.isDone?'hotrow':''}" onclick="openM(${r.i})">
-      <td><b>${esc(r.no)}</b><div class="sub">${esc(r.docNo)}</div></td>
+    return `<tr style="animation-delay:${i*20}ms" class="${r.over>0&&!r.closed?'hotrow':''}" onclick="openM(${r.i})">
+      <td><b>${esc(r.no)}</b><div class="sub">ทะเบียน ${esc(r.regNo)}</div></td>
       <td style="max-width:360px;font-weight:600">${esc(r.subj)}<div class="sub">${esc(r.dep)} · ${esc(r.owner)}</div></td>
       <td>${fTH(r.start)}</td>
-      <td><b>${r.elapsed}</b> วัน${r.over>0&&!r.isDone?`<div class="sub" style="color:#ef4444">เกิน ${r.over} วัน</div>`:''}</td>
-      <td><div class="dsteps">${dots}</div><div class="sub" style="margin-top:4px">${r.doneCnt}/9 ขั้นตอน</div></td>
+      <td><b>${r.elapsed}</b> วัน${r.over>0&&!r.closed?`<div class="sub" style="color:#ef4444">เกิน ${r.over} วัน</div>`:''}</td>
+      <td><div class="dsteps">${dots}</div><div class="sub" style="margin-top:4px">${r.doneCnt}/${NSTEP} ขั้นตอน</div></td>
       <td style="font-size:12.3px">${esc(cur)}</td>
       <td><span class="tag ${sc}">${esc(r.status)}</span></td>
-      <td><span class="pill ${r.isDone?'p0':r.tier.cls}">${r.isDone?'ปิดเรื่องแล้ว':r.tier.txt}</span></td>
+      <td><span class="pill ${r.closed?'p0':r.tier.cls}">${r.closed?'ปิดเรื่องแล้ว':r.tier.txt}</span></td>
       <td style="color:var(--pink);font-weight:700;white-space:nowrap">ดูสถานะ →</td></tr>`}).join('')
    :'<tr><td colspan="9" style="padding:34px;text-align:center;color:var(--muted)">ไม่พบรายการที่ตรงกับเงื่อนไข</td></tr>';
   kpi();analytics();
 }
 
-/* ========= MODAL ========= */
+/* ========= หน้าต่างรายละเอียด ========= */
 function openM(i){
-  const r=ROWS.find(x=>x.i===i);CUR=r;
-  $('#mno').textContent=`เลขหนังสือ ${r.no} · เลขที่รับ ${r.docNo}`;
+  const r=ROWS.find(x=>x.i===i);if(!r)return;CUR=r;
+  $('#mno').textContent=`เลขทะเบียน ${r.regNo}`+(r.issueNo?` · เลขที่หนังสือ ${r.issueNo}`:' · ยังไม่ได้ออกเลขหนังสือ');
   $('#mtitle').textContent=r.subj;
   $('#mbadges').innerHTML=`<span class="tag ${r.isDone?'t-ok':'t-run'}">${esc(r.status)}</span>
-   <span class="pill ${r.isDone?'p0':r.tier.cls}">${r.isDone?'ปิดเรื่องแล้ว':r.tier.txt}</span>
+   <span class="pill ${r.closed?'p0':r.tier.cls}">${r.closed?'ปิดเรื่องแล้ว':r.tier.txt}</span>
    <span class="tag t-wait">${esc(r.cat)}</span>`;
-  $('#mkv').innerHTML=[['เลขหนังสือออก',r.no],['เลขที่รับเรื่อง',r.docNo],['ประเภท/หมวดหมู่',r.cat],
-   ['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],['วันที่เริ่มงาน',fTH(r.start)],
+  $('#mkv').innerHTML=[['เลขทะเบียนรับเรื่อง',r.regNo],['เลขที่หนังสือที่ออกให้',r.issueNo||'ยังไม่ได้ออกเลข'],
+   ['ประเภท/หมวดหมู่',r.cat],['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],['วันที่เริ่มงาน',fTH(r.start)],
    ['วันที่ส่งคืนเจ้าของเรื่อง',r.fin?fTH(r.fin):'ยังไม่ส่งคืน'],
-   ['ความคืบหน้า',`${r.doneCnt}/9 ขั้นตอน (${Math.round(r.doneCnt/9*100)}%)`],
+   ['ความคืบหน้า',`${r.doneCnt}/${NSTEP} ขั้นตอน (${Math.round(r.doneCnt/NSTEP*100)}%)`],
    ['ไฟล์บันทึกข้อความ',r.file?'มีไฟล์แนบ ✔':'ยังไม่มีไฟล์แนบ']]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   $('#mtl').innerHTML=r.steps.map((s,k)=>{
-    const now=!s.done&&!s.skip&&r.steps.slice(0,k).every(x=>x.done||x.skip)&&!r.isDone;
+    const now=!s.done&&!s.skip&&r.steps.slice(0,k).every(x=>x.done||x.skip)&&!r.closed;
     const txt=s.done?'✔ ผ่านแล้ว · '+esc(s.val):(s.skip?'⏭ ไม่ได้ผ่านฝ่ายนี้':(now?'⏳ กำลังอยู่ที่ขั้นตอนนี้':'รอดำเนินการ'));
     return `<div class="st ${s.done?'done':''} ${s.skip?'skip':''} ${now?'now':''}"><b>${k+1}. ${s.label}</b>
      <span>${txt}</span></div>`}).join('');
   const rem=SLA-r.elapsed;
   $('#msla').innerHTML=[['มาตรฐานการเดินหนังสือ',`ไม่เกิน ${SLA} วัน`],['ระยะเวลาที่ใช้ไป',`${r.elapsed} วัน`],
-   ['คงเหลือ / เกินกำหนด',r.isDone?'ปิดเรื่องเรียบร้อย':(rem>=0?`เหลืออีก ${rem} วัน`:`เกินกำหนด ${r.over} วัน`)],
-   ['ระดับการแจ้งเตือน',r.isDone?'ไม่มี (ปิดเรื่องแล้ว)':r.tier.txt],
-   ['ข้อเสนอแนะ',r.isDone?'จัดเก็บเอกสารเข้าแฟ้ม':advice(r)]]
+   ['คงเหลือ / เกินกำหนด',r.closed?'ปิดเรื่องเรียบร้อย':(rem>=0?`เหลืออีก ${rem} วัน`:`เกินกำหนด ${r.elapsed-SLA} วัน`)],
+   ['ระดับการแจ้งเตือน',r.closed?'ไม่มี (ปิดเรื่องแล้ว)':r.tier.txt],
+   ['ข้อเสนอแนะ',r.closed?'จัดเก็บเอกสารเข้าแฟ้ม':advice(r)]]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   $('#mnote').innerHTML=r.note?esc(r.note):'<span style="color:var(--muted)">— ไม่มีหมายเหตุ —</span>';
   $('#mts').innerHTML=[['เวลาปัจจุบัน',fFull(new Date())],['อัปเดตล่าสุดในชีต',r.updAt||'ตามเวลาซิงก์ระบบ'],
    ['ผู้อัปเดต',r.updBy||'ฝ่ายการเงินและบัญชี'],['แหล่งข้อมูล','Google Sheets (Realtime)']]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
-  $('#qr').innerHTML='';new QRCode($('#qr'),{text:r.file||trackLink(r),width:176,height:176,colorDark:'#059669',colorLight:'#ffffff'});
+
+  // QR ชี้ไปที่ลิงก์ติดตามเสมอ เพื่อให้หน้าสแกนอ่านเลขทะเบียนได้ถูกต้อง
+  $('#qr').innerHTML='';new QRCode($('#qr'),{text:trackLink(r),width:176,height:176,colorDark:'#059669',colorLight:'#ffffff'});
+
   const bf=$('#bfile');
   if(r.file){bf.textContent='📎 เปิด/ดาวน์โหลดบันทึกข้อความ';bf.onclick=()=>window.open(r.file,'_blank')}
   else{bf.textContent='📎 ยังไม่มีไฟล์บันทึกข้อความ';bf.onclick=()=>alert('ยังไม่ได้แนบลิงก์ไฟล์ในคอลัมน์ "ไฟล์ข้อมูล"')}
-  location.hash='doc='+encodeURIComponent(r.no);
+  location.hash='doc='+encodeURIComponent(r.key);
   $('#ov').classList.add('show');document.body.style.overflow='hidden';
 }
 function advice(r){if(r.elapsed>=120)return'ยกระดับรายงานคณบดี + ติดตามรายวัน (เร่งด่วนสูงสุด)';
@@ -586,14 +646,19 @@ function advice(r){if(r.elapsed>=120)return'ยกระดับรายงา
  if(r.elapsed>=30)return'แจ้งเตือนหัวหน้ากลุ่มงานเพื่อเร่งรัด';
  if(r.elapsed>=15)return'เฝ้าระวัง — ตรวจสอบว่าติดค้างที่ขั้นตอนใด';
  if(r.over>0)return'เกิน SLA เล็กน้อย ควรสอบถามความคืบหน้า';return'อยู่ในกรอบเวลาปกติ'}
-const trackLink=r=>location.href.split('#')[0]+'#doc='+encodeURIComponent(r.no);
-function copyLink(){navigator.clipboard.writeText(trackLink(CUR));alert('คัดลอกลิงก์ติดตามแล้ว ✔')}
+
+const baseUrl=()=>CONFIG.PUBLIC_URL?CONFIG.PUBLIC_URL.split('#')[0]:location.href.split('#')[0];
+const trackLink=r=>baseUrl()+'#doc='+encodeURIComponent(r.key);
+function copyLink(){if(!CUR)return;
+ const link=trackLink(CUR);
+ if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(link).then(()=>alert('คัดลอกลิงก์ติดตามแล้ว ✔')).catch(()=>prompt('คัดลอกลิงก์นี้',link))}
+ else prompt('คัดลอกลิงก์นี้',link)}
 function closeM(){$('#ov').classList.remove('show');document.body.style.overflow='';history.replaceState(null,'',location.pathname)}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM();closePreview()}});
 
-/* ========= PRINT ========= */
+/* ========= ใบปะหน้า A4 ========= */
 function buildA4(r){
- $('#a4no').textContent='เลขที่ '+r.no;
+ $('#a4no').textContent=r.issueNo?('เลขที่ '+r.issueNo):('ทะเบียน '+r.regNo);
  $('#a4subj').textContent=r.subj;
  $('#a4meta').textContent=`${r.cat} · ${r.dep} · ${fTH(r.start)}`;
  const stEl=$('#a4status');
@@ -605,16 +670,17 @@ function buildA4(r){
    const icon=s.done?'✔':(s.skip?'–':'');
    const note=s.done?'ผ่านแล้ว · '+esc(s.val):(s.skip?'<span class="skiptxt">ไม่ได้ผ่านฝ่ายนี้</span>':'รอดำเนินการ');
    return `<div class="s"><span class="dot ${cls}">${icon}</span><span>${esc(s.label)} — ${note}</span></div>`}).join('');
- $('#a4kv').innerHTML=[['เลขที่รับเรื่อง',r.docNo],['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],
+ $('#a4kv').innerHTML=[['เลขทะเบียนรับเรื่อง',r.regNo],['เลขที่หนังสือที่ออกให้',r.issueNo||'ยังไม่ได้ออกเลข'],
+  ['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],
   ['วันที่เริ่มงาน',fTH(r.start)],['วันที่ส่งคืนเจ้าของเรื่อง',r.fin?fTH(r.fin):'ยังไม่ส่งคืน'],
   ['ระยะเวลาที่ใช้ไป',`${r.elapsed} วัน (มาตรฐาน ≤ ${SLA} วัน)`],
-  ['ขั้นตอนปัจจุบัน',r.isDone?'เสร็จสิ้นกระบวนการ':(r.steps.find(s=>!s.done&&!s.skip)?.label||'-')],
+  ['ขั้นตอนปัจจุบัน',r.closed?'เสร็จสิ้นกระบวนการ':((r.steps.find(s=>!s.done&&!s.skip)||{}).label||'-')],
   ['หมายเหตุ',r.note||'-']].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
  $('#a4cert').innerHTML=`<b>✅ การรับรองผลการดำเนินการแบบดิจิทัล</b><br>
   รายการนี้บันทึกและอัปเดตสถานะผ่านระบบกำกับติดตามหนังสือซึ่งเชื่อมต่อฐานข้อมูลกลาง (Google Sheets) แบบเรียลไทม์
   จึงไม่จำเป็นต้องลงลายมือชื่อรับรองบนใบปะหน้านี้ ผู้ตรวจสอบสามารถยืนยันความถูกต้องได้ทันทีจากสถานะล่าสุดผ่าน QR ด้านขวา<br><br>
-  เลขอ้างอิงระบบ: <b>${esc(r.no)}</b> · บันทึกล่าสุดในชีต: ${esc(r.updAt||'ตามเวลาซิงก์ระบบ')} · ผู้อัปเดต: ${esc(r.updBy||'ฝ่ายการเงินและบัญชี')}`;
- $('#a4qr').innerHTML='';new QRCode($('#a4qr'),{text:r.file||trackLink(r),width:150,height:150,colorDark:'#059669',colorLight:'#ffffff'});
+  เลขอ้างอิงระบบ: <b>${esc(r.regNo)}</b> · บันทึกล่าสุดในชีต: ${esc(r.updAt||'ตามเวลาซิงก์ระบบ')} · ผู้อัปเดต: ${esc(r.updBy||'ฝ่ายการเงินและบัญชี')}`;
+ $('#a4qr').innerHTML='';new QRCode($('#a4qr'),{text:trackLink(r),width:150,height:150,colorDark:'#059669',colorLight:'#ffffff'});
  $('#a4d').textContent=fFull(new Date());
 }
 function printA4(){if(!CUR)return;closePreview();buildA4(CUR);setTimeout(()=>window.print(),260)}
@@ -626,20 +692,21 @@ function saveQR(){
  const box=$('#qr'),el=box.querySelector('canvas')||box.querySelector('img');
  if(!el)return;
  const url=el.tagName==='CANVAS'?el.toDataURL('image/png'):el.src;
- const a=document.createElement('a');a.href=url;a.download=`QR_${CUR?CUR.no:'doc'}.png`;a.click();
+ const a=document.createElement('a');a.href=url;
+ a.download='QR_'+String(CUR?CUR.key:'doc').replace(/[\\/:*?"<>|]/g,'-')+'.png';a.click();
 }
 window.addEventListener('beforeprint',()=>{$('#a4').classList.remove('preview');$('#a4prevBackdrop').classList.remove('show')});
 
-/* ========= EXPORT ========= */
+/* ========= ส่งออก CSV ========= */
 function exportCSV(){
- const h=['เลขหนังสือ','เลขที่รับ','เรื่อง','ผู้รับเรื่อง','หน่วยงาน','ประเภท','วันที่เริ่ม','วันที่เสร็จ','ใช้เวลา(วัน)','เกินกำหนด(วัน)','ความคืบหน้า','สถานะ','ระดับเวลา'];
- const b=VIEW.map(r=>[r.no,r.docNo,r.subj,r.owner,r.dep,r.cat,fTH(r.start),r.fin?fTH(r.fin):'',r.elapsed,r.over,r.doneCnt+'/9',r.status,r.tier.txt]);
- const csv='\uFEFF'+[h,...b].map(x=>x.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+ const h=['เลขทะเบียน','เลขที่หนังสือ','เรื่อง','ผู้รับเรื่อง','หน่วยงาน','ประเภท','วันที่เริ่ม','วันที่เสร็จ','ใช้เวลา(วัน)','เกินกำหนด(วัน)','ความคืบหน้า','สถานะ','ระดับเวลา'];
+ const b=VIEW.map(r=>[r.regNo,r.issueNo,r.subj,r.owner,r.dep,r.cat,fTH(r.start),r.fin?fTH(r.fin):'',r.elapsed,r.over,r.doneCnt+'/'+NSTEP,r.status,r.closed?'ปิดเรื่องแล้ว':r.tier.txt]);
+ const csv='\uFEFF'+[h,...b].map(x=>x.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\n');
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
  a.download=`ติดตามหนังสือ_${new Date().toISOString().slice(0,10)}.csv`;a.click()}
 
-/* ========= BOOT ========= */
-(function(){ // ให้แท็บเบราว์เซอร์ขึ้นโลโก้ EN-MSU เสมอ ถ้าโหลด logo.png ไม่ได้ให้วาดตราสำรอง
+/* ========= เริ่มทำงาน ========= */
+(function(){ // ถ้าโหลด logo.png ไม่ได้ ให้วาดตราสำรองเป็นไอคอนแท็บ
   const probe=new Image();
   probe.onerror=function(){
     const c=document.createElement('canvas');c.width=64;c.height=64;const x=c.getContext('2d');
@@ -651,9 +718,29 @@ function exportCSV(){
   };
   probe.src='logo.png';
 })();
+
+/* ปุ่มลัดไปหน้าผู้ดูแล / หน้าสแกน — จะแสดงก็ต่อเมื่อกรอก ADMIN_URL ไว้แล้ว */
+(function(){
+  if(!CONFIG.ADMIN_URL)return;
+  const bar=document.querySelector('.topbar');if(!bar)return;
+  const base=CONFIG.ADMIN_URL.split('#')[0];
+  const scan=base+(base.indexOf('?')>-1?'&':'?')+'page=scan';
+  bar.insertAdjacentHTML('beforeend',
+    `<a class="btn ghost" style="text-decoration:none" href="${base}" target="_blank">🔐 ผู้ดูแลระบบ</a>
+     <a class="btn ghost" style="text-decoration:none" href="${scan}" target="_blank">📷 สแกน QR</a>`);
+})();
+
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('th-TH'),1000);
-loadData().then(()=>{const h=decodeURIComponent(location.hash.replace('#doc=',''));
- const r=ROWS.find(x=>x.no===h);if(r)openM(r.i)});
+
+/* เปิดเรื่องอัตโนมัติเมื่อเข้ามาจากลิงก์ #doc=... (รองรับทั้งเลขทะเบียนและเลขที่หนังสือ) */
+function openFromHash(){
+  const h=decodeURIComponent(location.hash.replace('#doc=',''));
+  if(!h)return;
+  const r=ROWS.find(x=>x.key===h)||ROWS.find(x=>x.issueNo===h)||ROWS.find(x=>x.no===h);
+  if(r)openM(r.i);
+}
+loadData().then(openFromHash);
+window.addEventListener('hashchange',()=>{if(location.hash.indexOf('#doc=')===0)openFromHash()});
 setInterval(loadData,45000);
 </script>
 </body>
