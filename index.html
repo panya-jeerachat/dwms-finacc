@@ -350,6 +350,11 @@ const CONFIG = {
   // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
   ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbzNDx_0tMI-q-Oem1jOBZfRxAVfQLSMhJtXjxd-own7HSv3hutuNjr7dJLAassgarRs/exec',
 
+  // QR บนใบปะหน้าจะชี้ไปที่ไหน
+  //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
+  //   'track' = หน้าติดตามสถานะสาธารณะ (คนนอกดูความคืบหน้าได้ แต่ประทับไม่ได้)
+  QR_TARGET: 'scan',
+
   // ลิงก์หน้าสแกน — กรอกให้แล้ว ไม่ต้องแก้ (เป็นหน้าสแกนในเว็บแอปเดียวกัน)
   SCAN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbzNDx_0tMI-q-Oem1jOBZfRxAVfQLSMhJtXjxd-own7HSv3hutuNjr7dJLAassgarRs/exec?page=scan'
 };
@@ -633,8 +638,8 @@ function openM(i){
    ['ผู้อัปเดต',r.updBy||'ฝ่ายการเงินและบัญชี'],['แหล่งข้อมูล','Google Sheets (Realtime)']]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
 
-  // QR ชี้ไปที่ลิงก์ติดตามเสมอ เพื่อให้หน้าสแกนอ่านเลขทะเบียนได้ถูกต้อง
-  $('#qr').innerHTML='';new QRCode($('#qr'),{text:trackLink(r),width:176,height:176,colorDark:'#059669',colorLight:'#ffffff'});
+  // QR ชี้ไปตามที่ตั้งไว้ใน CONFIG.QR_TARGET
+  $('#qr').innerHTML='';new QRCode($('#qr'),{text:qrLink(r),width:176,height:176,colorDark:'#059669',colorLight:'#ffffff'});
 
   const bf=$('#bfile');
   if(r.file){bf.textContent='📎 เปิด/ดาวน์โหลดบันทึกข้อความ';bf.onclick=()=>window.open(r.file,'_blank')}
@@ -652,6 +657,18 @@ function advice(r){if(r.elapsed>=120)return'ยกระดับรายงา
 
 const baseUrl=()=>CONFIG.PUBLIC_URL?CONFIG.PUBLIC_URL.split('#')[0]:location.href.split('#')[0];
 const trackLink=r=>baseUrl()+'#doc='+encodeURIComponent(r.key);
+
+/* ลิงก์เปิดหน้าประทับสถานะพร้อมเลขทะเบียนของเรื่องนั้น */
+function stampLink(r){
+  if(!CONFIG.SCAN_URL)return trackLink(r);
+  const u=CONFIG.SCAN_URL.split('#')[0];
+  return u+(u.indexOf('?')>-1?'&':'?')+'no='+encodeURIComponent(r.key);
+}
+
+/* ข้อความที่จะเก็บลงใน QR บนเอกสาร */
+function qrLink(r){
+  return (CONFIG.QR_TARGET==='scan'&&CONFIG.SCAN_URL)?stampLink(r):trackLink(r);
+}
 
 /* เปิดหน้าสแกนพร้อมเลขทะเบียนของเรื่องนี้ — เจ้าหน้าที่ประทับสถานะได้เลยโดยไม่ต้องพิมพ์เลขซ้ำ */
 function openStamp(){
@@ -690,7 +707,7 @@ function buildA4(r){
   รายการนี้บันทึกและอัปเดตสถานะผ่านระบบกำกับติดตามหนังสือซึ่งเชื่อมต่อฐานข้อมูลกลาง (Google Sheets) แบบเรียลไทม์
   จึงไม่จำเป็นต้องลงลายมือชื่อรับรองบนใบปะหน้านี้ ผู้ตรวจสอบสามารถยืนยันความถูกต้องได้ทันทีจากสถานะล่าสุดผ่าน QR ด้านขวา<br><br>
   เลขอ้างอิงระบบ: <b>${esc(r.regNo)}</b> · บันทึกล่าสุดในชีต: ${esc(r.updAt||'ตามเวลาซิงก์ระบบ')} · ผู้อัปเดต: ${esc(r.updBy||'ฝ่ายการเงินและบัญชี')}`;
- $('#a4qr').innerHTML='';new QRCode($('#a4qr'),{text:trackLink(r),width:150,height:150,colorDark:'#059669',colorLight:'#ffffff'});
+ $('#a4qr').innerHTML='';new QRCode($('#a4qr'),{text:qrLink(r),width:150,height:150,colorDark:'#059669',colorLight:'#ffffff'});
  $('#a4d').textContent=fFull(new Date());
 }
 function printA4(){if(!CUR)return;closePreview();buildA4(CUR);setTimeout(()=>window.print(),260)}
