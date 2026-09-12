@@ -43,6 +43,11 @@
    <div class="text-xs text-slate-500 text-center mt-0.5">สแกน QR เปลี่ยนสถานะหนังสือ</div>
   </div>
   <div id="setupError" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-3 mb-4 leading-relaxed"></div>
+  <div id="setupBox" class="hidden mb-4">
+   <label>วางลิงก์เว็บแอป (ลงท้ายด้วย /exec)</label>
+   <input id="apiInput" placeholder="https://script.google.com/macros/s/..../exec" class="mb-2">
+   <button type="button" onclick="saveApiUrl()" class="btn btn-primary">บันทึกลิงก์แล้วใช้งานต่อ</button>
+  </div>
   <div id="loginError" class="hidden bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-3 py-2 mb-4"></div>
   <form id="loginForm" onsubmit="return doLogin(event)">
    <div class="mb-3"><label>ชื่อผู้ใช้</label><input id="loginUser" required autocomplete="username"></div>
@@ -113,13 +118,30 @@
    ★ ถ้าใช้แบบ (ข) ต้องกรอก API_URL ด้านล่างนี้จุดเดียว
    ========================================================================== */
 const CONFIG = {
-  // URL เว็บแอปที่ได้จากขั้นตอน Deploy ของ Apps Script (ลงท้ายด้วย /exec)
-  // ตัวอย่าง: 'https://script.google.com/macros/s/AKfycbxxxxxxxxxxxx/exec'
-  API_URL: 'https://script.google.com/macros/s/AKfycby4D7TwyD0N6TzLjH3UB9MBgPlNR-Dcsg0bv7Y3lEFc2BdGWSoUw_3VZi2mWUDiVpHj/exec'
+  // ★★★ จุดเดียวที่ต้องกรอก ★★★
+  // วาง URL เว็บแอปที่ได้จากขั้นตอน Deploy ของ Apps Script (ลงท้ายด้วย /exec)
+  // ไว้ระหว่างเครื่องหมายคำพูดคู่บรรทัดล่างนี้ แล้วอัปโหลดไฟล์ทับของเดิม
+  // ตัวอย่าง:  API_URL: 'https://script.google.com/macros/s/AKfycbxxxxxxxx/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbz-9EBOvEILg2tRfB7kNuGMGHo51jH5kbQOhlG-AwJDhSEY2sdfKZ81KW3RuPLZmDUn/exec'
 };
 
 /* ---------- ตรวจว่ากำลังทำงานอยู่ที่ไหน ---------- */
 const IN_GAS = !!(typeof google !== 'undefined' && google.script && google.script.run);
+
+/* ถ้ายังไม่ได้กรอก API_URL ในไฟล์ ระบบจะให้วางลิงก์ผ่านหน้าจอแล้วจำไว้ในเครื่องนี้
+   (ใช้ทดสอบได้ทันที แต่ควรกรอกลงไฟล์ด้วย เจ้าหน้าที่คนอื่นจะได้ไม่ต้องวางเอง) */
+let API = CONFIG.API_URL;
+if (!API) { try { API = localStorage.getItem('dt_api_url') || ''; } catch (e) { API = ''; } }
+
+function saveApiUrl(){
+  const v = (document.getElementById('apiInput').value || '').trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v)) {
+    alert('ลิงก์ต้องขึ้นต้นด้วย https://script.google.com/ และลงท้ายด้วย /exec');
+    return;
+  }
+  try { localStorage.setItem('dt_api_url', v); } catch (e) {}
+  location.reload();
+}
 
 let TOKEN = '';
 try { TOKEN = localStorage.getItem('dt_scan_token') || ''; } catch (e) { TOKEN = ''; }
@@ -138,9 +160,9 @@ function call(fn, args, onOk, onErr){
     return;
   }
 
-  if (!CONFIG.API_URL) { fail('ยังไม่ได้ตั้งค่า API_URL ในไฟล์ scan.html'); return; }
+  if (!API) { fail('ยังไม่ได้ตั้งค่าลิงก์เว็บแอป (API_URL) ในไฟล์ scan.html'); return; }
 
-  fetch(CONFIG.API_URL, {
+  fetch(API, {
     method: 'POST',
     // ต้องเป็น text/plain เท่านั้น มิฉะนั้นเบราว์เซอร์จะยิง preflight ซึ่ง Apps Script รับไม่ได้
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -148,17 +170,19 @@ function call(fn, args, onOk, onErr){
   })
   .then(r => r.json())
   .then(r => { if (r && r.ok) { if (onOk) onOk(r.data); } else fail((r && r.message) || 'เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง'); })
-  .catch(e => fail('ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบ API_URL และการตั้งค่า Deploy (' + (e.message || e) + ')'));
+  .catch(e => fail('ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบลิงก์เว็บแอปและการตั้งค่า Deploy ให้เป็น Anyone (' + (e.message || e) + ')'));
 }
 
 /* ---------- เริ่มทำงาน ---------- */
 (function init(){
   if (IN_GAS) document.getElementById('gasNotice').classList.remove('hidden');
-  if (!IN_GAS && !CONFIG.API_URL) {
+  if (!IN_GAS && !API) {
     const box = document.getElementById('setupError');
-    box.innerHTML = '<b>ยังตั้งค่าไม่ครบ</b><br>เปิดไฟล์ scan.html ด้วยโปรแกรมแก้ไขข้อความ '
-      + 'แล้วกรอก URL ของเว็บแอป (ลงท้ายด้วย /exec) ลงในช่อง API_URL';
+    box.innerHTML = '<b>ยังตั้งค่าไม่ครบ</b><br>หน้านี้ยังไม่รู้ว่าจะส่งข้อมูลไปที่ไหน '
+      + 'ให้วางลิงก์เว็บแอปของ Apps Script (ตัวที่ลงท้ายด้วย /exec) ในช่องด้านล่าง<br>'
+      + 'หาได้จาก Apps Script &rarr; Deploy &rarr; Manage deployments &rarr; คัดลอก Web app URL';
     box.classList.remove('hidden');
+    document.getElementById('setupBox').classList.remove('hidden');
     document.getElementById('loginBtn').disabled = true;
     return;
   }

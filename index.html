@@ -293,6 +293,7 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
    <div>
     <div class="qrbox"><div id="qr"></div><p>สแกนเพื่อติดตามสถานะเรื่องนี้แบบเรียลไทม์</p>
      <div class="stack">
+      <button class="btn" id="bstamp" onclick="openStamp()" style="display:none">🖊️ ประทับสถานะ (สำหรับเจ้าหน้าที่)</button>
       <button class="btn" id="bfile">📎 เปิด/ดาวน์โหลดบันทึกข้อความ</button>
       <button class="btn ghost" onclick="saveQR()">💾 บันทึก QR Code เป็นรูป</button>
       <button class="btn ghost" onclick="previewA4()">👁️ พรีวิวเอกสาร</button>
@@ -343,13 +344,16 @@ const CONFIG = {
   GID: '0',                 // แท็บ "ชีต1"
   SLA: 7,                   // มาตรฐานการเดินหนังสือ (วันทำการ)
 
-  // ลิงก์สาธารณะของหน้านี้ (เช่น https://ชื่อผู้ใช้.github.io/doctrack/)
-  // ใส่ไว้เพื่อให้ QR ชี้มาที่ลิงก์จริงเสมอ แม้จะเปิดไฟล์จากเครื่อง
-  // เว้นว่าง = ใช้ที่อยู่ของหน้าที่กำลังเปิดอยู่
+  // ลิงก์สาธารณะของหน้านี้ — กรอกให้แล้ว ไม่ต้องแก้
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
-  // ลิงก์เว็บแอป Apps Script (ได้จากขั้นตอน Deploy) เว้นว่าง = ซ่อนปุ่ม
-  ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycby4D7TwyD0N6TzLjH3UB9MBgPlNR-Dcsg0bv7Y3lEFc2BdGWSoUw_3VZi2mWUDiVpHj/exec'
+  // ★ จุดเดียวที่ต้องกรอกเอง: URL เว็บแอปที่ได้จาก Deploy (ลงท้ายด้วย /exec)
+  //   วางไว้ระหว่างเครื่องหมายคำพูด เช่น 'https://script.google.com/macros/s/AKfyc..../exec'
+  //   เว้นว่างไว้ก็ใช้งานได้ แค่จะไม่มีปุ่มลัดไปหน้าผู้ดูแลบนแถบด้านบน
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbz-9EBOvEILg2tRfB7kNuGMGHo51jH5kbQOhlG-AwJDhSEY2sdfKZ81KW3RuPLZmDUn/exec',
+
+  // ลิงก์หน้าสแกนบนเว็บของคุณ — กรอกให้แล้ว ไม่ต้องแก้
+  SCAN_URL: 'https://panya-jeerachat.github.io/dwms-finacc/scan.html'
 };
 
 const SHEET_ID = CONFIG.SHEET_ID, GID = CONFIG.GID, SLA = CONFIG.SLA;
@@ -637,6 +641,7 @@ function openM(i){
   const bf=$('#bfile');
   if(r.file){bf.textContent='📎 เปิด/ดาวน์โหลดบันทึกข้อความ';bf.onclick=()=>window.open(r.file,'_blank')}
   else{bf.textContent='📎 ยังไม่มีไฟล์บันทึกข้อความ';bf.onclick=()=>alert('ยังไม่ได้แนบลิงก์ไฟล์ในคอลัมน์ "ไฟล์ข้อมูล"')}
+  $('#bstamp').style.display=CONFIG.SCAN_URL?'block':'none';
   location.hash='doc='+encodeURIComponent(r.key);
   $('#ov').classList.add('show');document.body.style.overflow='hidden';
 }
@@ -649,6 +654,13 @@ function advice(r){if(r.elapsed>=120)return'ยกระดับรายงา
 
 const baseUrl=()=>CONFIG.PUBLIC_URL?CONFIG.PUBLIC_URL.split('#')[0]:location.href.split('#')[0];
 const trackLink=r=>baseUrl()+'#doc='+encodeURIComponent(r.key);
+
+/* เปิดหน้าสแกนพร้อมเลขทะเบียนของเรื่องนี้ — เจ้าหน้าที่ประทับสถานะได้เลยโดยไม่ต้องพิมพ์เลขซ้ำ */
+function openStamp(){
+  if(!CUR||!CONFIG.SCAN_URL)return;
+  const u=CONFIG.SCAN_URL.split('#')[0];
+  window.open(u+(u.indexOf('?')>-1?'&':'?')+'no='+encodeURIComponent(CUR.key),'_blank');
+}
 function copyLink(){if(!CUR)return;
  const link=trackLink(CUR);
  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(link).then(()=>alert('คัดลอกลิงก์ติดตามแล้ว ✔')).catch(()=>prompt('คัดลอกลิงก์นี้',link))}
