@@ -179,7 +179,7 @@
 const CONFIG = {
   // ★ URL เว็บแอปของ Apps Script (ลงท้ายด้วย /exec)
   //   ต้อง Deploy โดยตั้ง Who has access เป็น "Anyone" มิฉะนั้นหน้านี้จะติดต่อไม่ได้
-  API_URL: 'https://script.google.com/macros/s/AKfycbwvKDogE6CX2fpQEfmBvYX-Xp2UC2bis5FVyPArZCE3bBxi2kveSpnxPMQktoEuvs3W/exec'
+  API_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbzNDx_0tMI-q-Oem1jOBZfRxAVfQLSMhJtXjxd-own7HSv3hutuNjr7dJLAassgarRs/exec'
 };
 
 const $ = id => document.getElementById(id);
@@ -197,6 +197,7 @@ let TOKEN = store.get('finacc_token');
 let ME = '', MY_STAGES = [], ALL_STAGES = [], IS_ADMIN = false;
 let SKIP_TEXT = 'ไม่ได้ผ่านฝ่ายนี้', ISSUE_PREFIX = 'อว 0605.14/';
 let currentDoc = null, pendingNo = '';
+let holding = false;   // true = กำลังแสดงรายละเอียดเรื่องอยู่ ยังไม่ต้องอ่าน QR ใหม่
 
 /* ---------- ตัวแปรของกล้อง ---------- */
 let qr = null;
@@ -427,7 +428,10 @@ function watchFirstFrame(){
 }
 
 /* ---------- เปิด/ปิดกล้อง ---------- */
-function toggleCam(){ if (running) { autoRetried = true; stopCam(); } else { autoRetried = false; startCam(); } }
+function toggleCam(){
+  if (running) { autoRetried = true; holding = false; stopCam(); }
+  else { autoRetried = false; holding = false; startCam(); }
+}
 
 async function startCam(){
   hideMsg();
@@ -608,8 +612,9 @@ function explain(e){
 
 /* ---------- อ่าน QR ได้ ---------- */
 function onFound(text){
-  if (!running || text === lastText) return;
+  if (!running || holding || text === lastText) return;
   lastText = text;
+  holding = true;                 // กำลังดูรายละเอียดเรื่องอยู่ อย่าเพิ่งอ่านอันใหม่
   if (navigator.vibrate) navigator.vibrate(90);
   beep();
 
@@ -617,8 +622,33 @@ function onFound(text){
   history.unshift({ time, text });
   renderHistory();
 
-  try { qr.pause(true); } catch (e) {}
+  pauseDecoding();
   lookup(text, true);
+}
+
+/* หยุดเฉพาะการถอดรหัส QR แต่ปล่อยให้ภาพจากกล้องเดินต่อ
+   ถ้าสั่งหยุดภาพด้วย บางเครื่องจะค้างภาพเดิมแล้วสั่งให้เล่นต่อไม่ได้อีก */
+function pauseDecoding(){
+  try { qr.pause(false); } catch (e) {}
+}
+
+/* กลับมาอ่าน QR ต่อ พร้อมตรวจว่ากล้องเดินจริงไหม ถ้าค้างจะเปิดใหม่ให้เองโดยผู้ใช้ไม่ต้องทำอะไร */
+function resumeScanning(){
+  holding = false;
+  lastText = '';
+  if (!running || !qr) return;
+  try { qr.resume(); } catch (e) {}
+  kickVideo(4);
+
+  setTimeout(async () => {
+    if (!running) return;
+    const v = document.querySelector('#reader video');
+    if (v && !v.paused && v.videoWidth > 0) return;   // ภาพเดินอยู่ เรียบร้อย
+    await stopCam();
+    await new Promise(r => setTimeout(r, 250));
+    autoRetried = false;
+    startCam();
+  }, 900);
 }
 
 function renderHistory(){
@@ -642,11 +672,9 @@ function beep(){
   } catch (e) {}
 }
 
-function resumeScanLater(){
-  setTimeout(() => {
-    lastText = '';
-    try { if (running) qr.resume(); } catch (e) {}
-  }, 2500);
+/* ค้นไม่เจอหรือเกิดข้อผิดพลาด ให้กลับมาอ่านต่อเองหลังผู้ใช้ได้อ่านข้อความแล้ว */
+function resumeAfterMiss(){
+  setTimeout(resumeScanning, 1600);
 }
 
 /* ==========================================================================
@@ -664,14 +692,14 @@ function lookup(raw, fromCam){
   call('scanLookup', [TOKEN, raw])
     .then(doc => {
       currentDoc = doc;
+      holding = true;              // รอให้ผู้ใช้จัดการเรื่องนี้ให้เสร็จก่อน
       renderDoc(doc);
-      if (fromCam) resumeScanLater();
     })
     .catch(e => {
       $('docCard').innerHTML = '';
       toast(e.message, 'err');
       if (/เซสชัน/.test(e.message)) { store.del('finacc_token'); TOKEN = ''; showLogin(); return; }
-      if (fromCam) resumeScanLater();
+      if (fromCam) resumeAfterMiss(); else holding = false;
     });
 }
 
@@ -777,8 +805,12 @@ function clearDoc(){
   currentDoc = null;
   $('docCard').innerHTML = '';
   $('manualNo').value = '';
-  lastText = '';
-  try { if (running) qr.resume(); } catch (e) {}
+  resumeScanning();
+  // เลื่อนจอกลับขึ้นไปที่กล้อง จะได้ส่อง QR เรื่องถัดไปได้เลย
+  if (running) {
+    const box = $('reader');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 /* ---------- ปุ่มช่วยกรอกเลขที่หนังสือ ---------- */
