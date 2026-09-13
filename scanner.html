@@ -105,6 +105,8 @@
            onkeydown="if(event.key==='Enter')doLogin()">
    </div>
    <button class="primary" style="margin-top:16px" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+   <button class="link" style="margin-top:10px" onclick="testLink()">🔌 ทดสอบการเชื่อมต่อฐานข้อมูล</button>
+   <div id="linkBox" class="msg" style="text-align:left"></div>
    <div style="font-size:11px;color:#94a3b8;margin-top:14px;line-height:1.7">
     ระบบจำการเข้าสู่ระบบไว้ 6 ชั่วโมง<br>สแกนเรื่องถัดไปได้เลยโดยไม่ต้องกรอกซ้ำ
    </div>
@@ -179,7 +181,7 @@
 const CONFIG = {
   // ★ URL เว็บแอปของ Apps Script (ลงท้ายด้วย /exec)
   //   ต้อง Deploy โดยตั้ง Who has access เป็น "Anyone" มิฉะนั้นหน้านี้จะติดต่อไม่ได้
-  API_URL: 'https://script.google.com/macros/s/AKfycbwvKDogE6CX2fpQEfmBvYX-Xp2UC2bis5FVyPArZCE3bBxi2kveSpnxPMQktoEuvs3W/exec'
+  API_URL: 'https://script.google.com/macros/s/AKfycbzNd46gQLh_Qc-4EiS87IC2nsFlgyht-xkc9Rz_gkE4HxHgTOZwGcgXsYJX0dBx30_1/exec'
 };
 
 const $ = id => document.getElementById(id);
@@ -190,8 +192,8 @@ const store = {
   set(k,v){ try { localStorage.setItem(k,v); } catch (e) {} },
   del(k){ try { localStorage.removeItem(k); } catch (e) {} }
 };
-let API = CONFIG.API_URL;
-if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(API)) API = store.get('finacc_api') || API;
+// ถ้าเคยบันทึกลิงก์ไว้ในเครื่องนี้ (จากปุ่มทดสอบการเชื่อมต่อ) ให้ใช้อันนั้นก่อน
+let API = store.get('finacc_api') || CONFIG.API_URL;
 
 let TOKEN = store.get('finacc_token');
 let ME = '', MY_STAGES = [], ALL_STAGES = [], IS_ADMIN = false;
@@ -277,8 +279,8 @@ function call(fn, args){
     const net = (e && e.name === 'TypeError')
       || /failed to fetch|load failed|networkerror|network error/i.test((e && e.message) || '');
     if (net) {
-      throw new Error('ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจสอบอินเทอร์เน็ต และตรวจว่า Deploy '
-        + 'โดยตั้ง Who has access เป็น Anyone แล้ว');
+      throw new Error('ติดต่อเซิร์ฟเวอร์ไม่ได้ — กดปุ่ม "ทดสอบการเชื่อมต่อฐานข้อมูล" '
+        + 'ด้านล่างเพื่อดูสาเหตุและวิธีแก้');
     }
     throw e;
   });
@@ -321,6 +323,66 @@ function doLogin(){
       msg.className = 'msg show err';
       msg.innerHTML = esc(e.message);
     });
+}
+
+/* ทดสอบว่าหน้านี้คุยกับเว็บแอปของ Apps Script ได้จริงไหม และบอกสาเหตุเมื่อไม่ได้ */
+function testLink(){
+  const box = $('linkBox');
+  box.className = 'msg show warn';
+  box.innerHTML = '<span class="spin">⏳</span> กำลังทดสอบ…';
+
+  if (!API) {
+    box.className = 'msg show err';
+    box.innerHTML = '<b>ยังไม่ได้ตั้งลิงก์เชื่อมต่อ</b>' + linkEditor();
+    return;
+  }
+
+  fetch(API + (API.indexOf('?') > -1 ? '&' : '?') + 'page=api&action=ping&_=' + Date.now())
+    .then(r => r.text())
+    .then(txt => {
+      let j = null;
+      try { j = JSON.parse(txt); } catch (e) {}
+      if (j && j.ok) {
+        box.className = 'msg show ok';
+        box.innerHTML = '<b>เชื่อมต่อได้ปกติ ✔</b><br>ลองกดเข้าสู่ระบบได้เลย'
+          + '<div class="raw">' + esc(API) + '</div>';
+      } else {
+        box.className = 'msg show err';
+        box.innerHTML = '<b>เว็บแอปตอบกลับมาไม่ใช่ข้อมูล</b><br>'
+          + 'มักเกิดจากยังไม่ได้ Deploy เวอร์ชันล่าสุด หรือลิงก์ไม่ตรงกับโปรเจกต์ที่วางโค้ดไว้'
+          + '<div class="raw">' + esc(API) + '</div>' + linkEditor();
+      }
+    })
+    .catch(() => {
+      box.className = 'msg show err';
+      box.innerHTML = '<b>เบราว์เซอร์ถูกกั้นไม่ให้ติดต่อเว็บแอปนี้</b><br>'
+        + 'เกือบทั้งหมดเกิดจากตอน Deploy เลือก <b>Anyone with Google Account</b> '
+        + 'ซึ่งบังคับให้ล็อกอินก่อน ต้องเลือกเป็น <b>Anyone</b> เฉย ๆ เท่านั้น<br>'
+        + 'Deploy → Manage deployments → ดินสอ → Who has access → <b>Anyone</b> → '
+        + 'Version เลือก New version → Deploy'
+        + '<div class="raw">ลิงก์ที่ใช้อยู่: ' + esc(API) + '</div>' + linkEditor();
+    });
+}
+
+/* ช่องแก้ลิงก์ชั่วคราวในเครื่องนี้ ใช้ทดสอบลิงก์ใหม่โดยไม่ต้องอัปโหลดไฟล์ซ้ำ */
+function linkEditor(){
+  return '<div style="margin-top:10px">'
+    + '<label>ลองเปลี่ยนลิงก์เชื่อมต่อ (เฉพาะเครื่องนี้)</label>'
+    + '<input id="apiEdit" value="' + esc(API) + '" autocomplete="off">'
+    + '<button class="ghost" style="margin-top:8px" onclick="saveLink()">บันทึกลิงก์แล้วทดสอบใหม่</button>'
+    + '</div>';
+}
+function saveLink(){
+  const el = $('apiEdit');
+  if (!el) return;
+  const v = (el.value || '').trim();
+  if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(v)) {
+    alert('ลิงก์ต้องขึ้นต้นด้วย https://script.google.com/ และลงท้ายด้วย /exec');
+    return;
+  }
+  store.set('finacc_api', v);
+  API = v;
+  testLink();
 }
 
 function doLogout(){
