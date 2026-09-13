@@ -153,8 +153,73 @@ function loadLib(){
   return chain;
 }
 
+/* ขอสิทธิ์กล้องแบบตรงไปตรงมาหนึ่งครั้ง แล้วปิดสตรีมทิ้งทันที
+   คืน true ถ้าได้สิทธิ์ หรือคืนตัว error ถ้าไม่ได้ */
+async function askPermission(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return new Error('เบราว์เซอร์นี้ไม่รองรับการใช้กล้อง');
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    // บางเครื่องไม่รู้จัก facingMode ลองขอกล้องแบบไม่ระบุอีกครั้ง
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); }
+    catch (e2) { return e; }
+  }
+  try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  // เว้นจังหวะให้ระบบปล่อยกล้องคืนก่อน มิฉะนั้นบางเครื่องจะขึ้นว่ากล้องถูกใช้งานอยู่
+  await new Promise(r => setTimeout(r, 180));
+  return true;
+}
+
+/* คืนปุ่มให้กดใหม่ได้ */
+function resetBtn(){
+  const btn = $('mainBtn');
+  btn.disabled = false;
+  btn.className = 'primary';
+  btn.textContent = 'เปิดกล้องสแกน';
+  $('reader').style.display = 'none';
+  $('idle').style.display = 'block';
+}
+
+/* บังคับให้วิดีโอเล่นจริง — Safari บนมือถือบางครั้งไม่เริ่มเล่นเองรอบแรก */
+function kickVideo(tries){
+  const v = document.querySelector('#reader video');
+  if (!v) { if (tries > 0) setTimeout(() => kickVideo(tries - 1), 200); return; }
+  v.setAttribute('playsinline', '');
+  v.setAttribute('autoplay', '');
+  v.muted = true;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => { if (tries > 0) setTimeout(() => kickVideo(tries - 1), 250); });
+}
+
+/* กันเหนียว: ถ้าเปิดแล้วยังไม่มีภาพจริงภายในเวลาที่กำหนด ให้เปิดใหม่ให้เองหนึ่งครั้ง */
+let autoRetried = false;
+function watchFirstFrame(){
+  setTimeout(async () => {
+    if (!running) return;
+    const v = document.querySelector('#reader video');
+    if (v && v.videoWidth > 0) return;          // มีภาพแล้ว เรียบร้อย
+    kickVideo(4);
+    setTimeout(async () => {
+      if (!running) return;
+      const v2 = document.querySelector('#reader video');
+      if (v2 && v2.videoWidth > 0) return;
+      if (autoRetried) {
+        say('ภาพจากกล้องยังไม่ขึ้น ลองกดปิดกล้องแล้วเปิดใหม่อีกครั้ง', 'warn');
+        return;
+      }
+      autoRetried = true;
+      await stopCam();
+      await new Promise(r => setTimeout(r, 250));
+      startCam();
+    }, 1400);
+  }, 1200);
+}
+
 /* ---------- เปิด/ปิดกล้อง ---------- */
-function toggleCam(){ running ? stopCam() : startCam(); }
+function toggleCam(){ if (running) { autoRetried = true; stopCam(); } else { autoRetried = false; startCam(); } }
 
 async function startCam(){
   hideMsg();
@@ -162,18 +227,28 @@ async function startCam(){
   btn.textContent = 'กำลังเปิดกล้อง…';
   btn.disabled = true;
 
-  try { await loadLib(); }
-  catch (e) {
-    btn.disabled = false; btn.textContent = 'เปิดกล้องสแกน';
-    say('<b>โหลดตัวอ่าน QR ไม่สำเร็จ</b><br>ตรวจสอบว่าเครื่องต่ออินเทอร์เน็ตอยู่ แล้วรีเฟรชหน้านี้ใหม่', 'err');
+  // ต้องเปิดผ่าน https เท่านั้น (ยกเว้นทดสอบบนเครื่องตัวเองที่ localhost)
+  if (!window.isSecureContext) {
+    resetBtn();
+    say('<b>หน้านี้ไม่ได้เปิดผ่าน https</b><br>เบราว์เซอร์ห้ามใช้กล้องกับหน้าที่ไม่ปลอดภัย '
+      + 'ให้เปิดผ่านลิงก์เว็บของคณะที่ขึ้นต้นด้วย https:// ไม่ใช่เปิดไฟล์จากเครื่องโดยตรง', 'err');
     return;
   }
 
-  // ต้องเปิดผ่าน https เท่านั้น (ยกเว้นทดสอบบนเครื่องตัวเองที่ localhost)
-  if (!window.isSecureContext) {
-    btn.disabled = false; btn.textContent = 'เปิดกล้องสแกน';
-    say('<b>หน้านี้ไม่ได้เปิดผ่าน https</b><br>เบราว์เซอร์ห้ามใช้กล้องกับหน้าที่ไม่ปลอดภัย '
-      + 'ให้เปิดผ่านลิงก์เว็บของคณะที่ขึ้นต้นด้วย https:// ไม่ใช่เปิดไฟล์จากเครื่องโดยตรง', 'err');
+  // ★ ขอสิทธิ์กล้องให้จบเป็นขั้นตอนแรกก่อนเสมอ
+  // บนมือถือ กล่องขออนุญาตจะค้างรอผู้ใช้กดอยู่ ระหว่างนั้นตัวอ่าน QR จะวัดขนาดภาพไม่ได้
+  // ทำให้กดครั้งแรกแล้วจอดำ ต้องปิดแล้วเปิดใหม่ถึงติด การขอสิทธิ์แยกออกมาก่อนจึงตัดปัญหานี้ทิ้ง
+  const permit = await askPermission();
+  if (permit !== true) {
+    resetBtn();
+    say(explain(permit), 'err');
+    return;
+  }
+
+  try { await loadLib(); }
+  catch (e) {
+    resetBtn();
+    say('<b>โหลดตัวอ่าน QR ไม่สำเร็จ</b><br>ตรวจสอบว่าเครื่องต่ออินเทอร์เน็ตอยู่ แล้วรีเฟรชหน้านี้ใหม่', 'err');
     return;
   }
 
@@ -215,9 +290,7 @@ async function startCam(){
   } catch (e) { errors.push(e); }
 
   // เปิดไม่ได้เลย
-  $('reader').style.display = 'none';
-  $('idle').style.display = 'block';
-  btn.disabled = false; btn.textContent = 'เปิดกล้องสแกน';
+  resetBtn();
   say(explain(pickClearest(errors)), 'err');
 }
 
@@ -237,6 +310,9 @@ async function afterStart(){
   }
   $('swBtn').style.display = (cameras.length > 1) ? 'block' : 'none';
   $('torchBtn').style.display = hasTorch() ? 'block' : 'none';
+
+  kickVideo(6);        // บังคับให้ภาพเริ่มเล่นทันที
+  watchFirstFrame();   // ถ้ายังไม่ขึ้นภาพจริง จะเปิดใหม่ให้เอง
 }
 
 async function stopCam(){
