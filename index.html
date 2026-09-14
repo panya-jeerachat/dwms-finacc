@@ -105,6 +105,34 @@ tr.hotrow{box-shadow:inset 4px 0 0 var(--hot)}
 .bar .bt{height:9px;background:#f5f0f3;border-radius:99px;overflow:hidden}
 .bar .bt i{display:block;height:100%;border-radius:99px;transition:width 1.1s cubic-bezier(.2,1,.3,1)}
 .wl{max-height:330px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+/* แบบประเมินความพึงพอใจ */
+.rate{display:flex;gap:20px;flex-wrap:wrap}
+.rate .left{flex:1 1 300px;min-width:280px}
+.rate .right{flex:1 1 260px;min-width:250px}
+.stars{display:flex;gap:6px;justify-content:center;margin:6px 0 10px}
+.stars button{background:none;border:0;font-size:40px;line-height:1;cursor:pointer;padding:2px;
+  filter:grayscale(1);opacity:.35;transition:.15s}
+.stars button.on{filter:none;opacity:1;transform:scale(1.08)}
+.stars button:hover{opacity:.85;filter:none}
+.ratelabel{text-align:center;font-size:13px;color:var(--muted);min-height:20px;font-weight:600}
+.rate textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;
+  font-family:inherit;font-size:13px;resize:vertical}
+.rate textarea:focus{outline:2px solid var(--green);outline-offset:1px}
+.rrow{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:5px}
+.rrow .lv{width:34px;color:var(--muted);white-space:nowrap}
+.rrow .bt{flex:1;height:9px;background:#f1f5f9;border-radius:99px;overflow:hidden}
+.rrow .bt i{display:block;height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:99px;transition:width .9s}
+.rrow .nm{width:34px;text-align:right;color:var(--muted)}
+.bigavg{font-size:46px;font-weight:800;line-height:1;color:#f59e0b;text-align:center}
+.bigsub{text-align:center;font-size:12px;color:var(--muted);margin-top:4px}
+.cmt{border-top:1px solid var(--line);padding:8px 0;font-size:12.5px}
+.cmt .s{color:#f59e0b;letter-spacing:1px}
+.cmt .t{color:#94a3b8;font-size:11px;margin-left:6px}
+.cmtwrap{max-height:190px;overflow:auto;margin-top:8px}
+.rmsg{font-size:13px;border-radius:10px;padding:10px 12px;margin-top:10px;display:none}
+.rmsg.show{display:block}
+.rmsg.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
+.rmsg.bad{background:#fff1f2;border:1px solid #fecdd3;color:#9f1239}
 /* กล่องตารางทะเบียนหนังสือ — สูงขึ้นเพื่อให้เห็นได้ราว 5 เรื่องเพิ่มจากเดิมก่อนต้องเลื่อน
    ใช้ค่าที่มากกว่าระหว่างความสูงตามสัดส่วนจอกับค่าพิกเซลขั้นต่ำ จอเตี้ยจะได้ไม่สั้นเกินไป */
 .tblwrap{overflow:auto;max-height:max(78vh,560px);-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
@@ -270,6 +298,37 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
   <div class="card"><div class="ch">🗂️ จำแนกตามประเภทหนังสือ</div><div id="cCat"></div></div>
 </div>
 
+<!-- ===== ประเมินความพึงพอใจ ===== -->
+<div class="card" id="rateCard">
+  <div class="ch">⭐ ประเมินความพึงพอใจการให้บริการ <small>ความเห็นของท่านช่วยให้เราพัฒนาการบริการได้ดีขึ้น</small></div>
+  <div class="rate">
+    <div class="left">
+      <div class="ratelabel" id="rateHint">แตะดาวเพื่อให้คะแนน</div>
+      <div class="stars" id="stars"></div>
+      <div id="rateForm" style="display:none">
+        <input id="rateNo" placeholder="หมายเลขหนังสือที่เกี่ยวข้อง (ไม่บังคับ)"
+          style="width:100%;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-family:inherit;font-size:13px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;color:var(--muted)">ข้อเสนอแนะเพิ่มเติม (ไม่บังคับ)</span>
+          <span id="rateCount" style="font-size:11px;color:#94a3b8">0 / 300</span>
+        </div>
+        <textarea id="rateComment" rows="3" maxlength="300" oninput="rateCount()"
+          placeholder="เช่น ติดตามสถานะได้สะดวก อยากให้แจ้งเตือนเร็วขึ้น"></textarea>
+        <button class="btn" id="rateSend" onclick="sendRate()"
+          style="width:100%;margin-top:10px;background:var(--green);color:#fff;border:0;justify-content:center">
+          ส่งคะแนนประเมิน</button>
+      </div>
+      <div id="rateMsg" class="rmsg"></div>
+    </div>
+    <div class="right">
+      <div class="bigavg" id="rAvg">–</div>
+      <div class="bigsub" id="rCount">ยังไม่มีผู้ประเมิน</div>
+      <div style="margin-top:14px" id="rDist"></div>
+      <div class="cmtwrap" id="rCmt"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===== FOOTER ===== -->
 <div class="footer">
   <div class="fl">งานสารบรรณ ฝ่ายการเงินและบัญชี สำนักงานเลขานุการคณะวิศวกรรมศาสตร์ มหาวิทยาลัยมหาสารคาม</div>
@@ -352,7 +411,7 @@ const CONFIG = {
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
   // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
-  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbzNd46gQLh_Qc-4EiS87IC2nsFlgyht-xkc9Rz_gkE4HxHgTOZwGcgXsYJX0dBx30_1/exec',
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbxCDE7UHiiXRSXZNwmm2cnofBtdNPKTv_7d5xYDs07iW9ORn2BxqHbSvdhirBvllxUC/exec',
 
   // QR บนใบปะหน้าจะชี้ไปที่ไหน
   //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
@@ -776,8 +835,115 @@ function openFromHash(){
   const r=ROWS.find(x=>x.key===h)||ROWS.find(x=>x.issueNo===h)||ROWS.find(x=>x.no===h);
   if(r)openM(r.i);
 }
-loadData().then(openFromHash);
-window.addEventListener('hashchange',()=>{if(location.hash.indexOf('#doc=')===0)openFromHash()});
+
+/* ══════════════════ ประเมินความพึงพอใจ ══════════════════ */
+const RATE_WORDS=['','ควรปรับปรุงอย่างยิ่ง','ควรปรับปรุง','พอใช้','ดี','ดีมาก'];
+let RATE_SCORE=0;
+
+/* เรียกเว็บแอปของ Apps Script — ส่งเป็น text/plain เพื่อไม่ให้เบราว์เซอร์ยิง preflight */
+function apiCall(fn,args){
+  if(!CONFIG.ADMIN_URL)return Promise.reject(new Error('ยังไม่ได้ตั้งค่าลิงก์เว็บแอปในไฟล์นี้'));
+  return fetch(CONFIG.ADMIN_URL,{method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({fn:fn,args:args})})
+    .then(r=>r.text())
+    .then(t=>{let j;try{j=JSON.parse(t)}catch(e){throw new Error('เว็บแอปตอบกลับไม่ถูกรูปแบบ')}
+      if(!j.ok)throw new Error(j.message||'เกิดข้อผิดพลาด');return j.data});
+}
+
+function drawStars(){
+  $('#stars').innerHTML=[1,2,3,4,5].map(n=>
+    `<button type="button" aria-label="${n} ดาว" onclick="pickStar(${n})"
+      onmouseenter="hoverStar(${n})" onmouseleave="hoverStar(0)">⭐</button>`).join('');
+}
+function paintStars(n){
+  [...$('#stars').children].forEach((b,i)=>b.classList.toggle('on',i<n));
+}
+function hoverStar(n){
+  paintStars(n||RATE_SCORE);
+  $('#rateHint').textContent = n ? RATE_WORDS[n] : (RATE_SCORE?RATE_WORDS[RATE_SCORE]:'แตะดาวเพื่อให้คะแนน');
+}
+function pickStar(n){
+  RATE_SCORE=n; paintStars(n);
+  $('#rateHint').textContent=RATE_WORDS[n];
+  $('#rateForm').style.display='block';
+  $('#rateMsg').className='rmsg';
+}
+function rateCount(){
+  const n=$('#rateComment').value.length;
+  const c=$('#rateCount');
+  c.textContent=n+' / 300';
+  c.style.color = n>=300?'#e11d48':(n>260?'#b45309':'#94a3b8');
+}
+
+function sendRate(){
+  if(!RATE_SCORE){rateMsg('กรุณาเลือกจำนวนดาวก่อนส่ง',false);return}
+  const btn=$('#rateSend');
+  btn.disabled=true;btn.textContent='กำลังส่ง…';
+  apiCall('submitRating',[{score:RATE_SCORE,comment:$('#rateComment').value.trim(),
+                           no:$('#rateNo').value.trim(),from:'แดชบอร์ด'}])
+    .then(res=>{
+      btn.disabled=false;btn.textContent='ส่งคะแนนประเมิน';
+      try{localStorage.setItem('finacc_rated',new Date().toISOString())}catch(e){}
+      $('#rateForm').style.display='none';
+      RATE_SCORE=0;paintStars(0);
+      $('#rateHint').textContent='ขอบคุณสำหรับคะแนนและข้อเสนอแนะ';
+      rateMsg('บันทึกคะแนนของท่านเรียบร้อยแล้ว ขอบคุณที่ช่วยให้เราพัฒนาการบริการ',true);
+      if(res&&res.summary)paintSummary(res.summary);
+    })
+    .catch(e=>{
+      btn.disabled=false;btn.textContent='ส่งคะแนนประเมิน';
+      rateMsg('ส่งไม่สำเร็จ: '+e.message,false);
+    });
+}
+function rateMsg(text,ok){
+  const m=$('#rateMsg');
+  m.className='rmsg show '+(ok?'ok':'bad');
+  m.textContent=text;
+}
+
+function paintSummary(sm){
+  if(!sm)return;
+  $('#rAvg').textContent = sm.count? sm.average.toFixed(2) : '–';
+  $('#rCount').textContent = sm.count
+    ? '⭐'.repeat(Math.round(sm.average)) + ' จากผู้ประเมิน ' + nf(sm.count) + ' คน'
+    : 'ยังไม่มีผู้ประเมิน';
+  const mx=Math.max(...sm.dist,1);
+  $('#rDist').innerHTML=[5,4,3,2,1].map(n=>{
+    const v=sm.dist[n-1]||0;
+    return `<div class="rrow"><span class="lv">${n} ดาว</span>
+      <span class="bt"><i style="width:${v/mx*100}%"></i></span>
+      <span class="nm">${v}</span></div>`}).join('');
+  $('#rCmt').innerHTML = (sm.recent&&sm.recent.length)
+    ? sm.recent.map(c=>`<div class="cmt"><span class="s">${'★'.repeat(c.score)}</span>
+        <span class="t">${esc(c.time)}</span><div>${esc(c.comment)}</div></div>`).join('')
+    : '';
+}
+
+function loadSummary(){
+  apiCall('getRatingSummary',[]).then(paintSummary).catch(()=>{
+    $('#rCount').textContent='โหลดสรุปผลประเมินไม่ได้';
+  });
+}
+
+/* เปิดจากลิงก์ในอีเมล #rate=เลขหนังสือ ให้เลื่อนมาที่แบบประเมินและเติมเลขให้ */
+function openRateFromHash(){
+  const h=location.hash;
+  if(h.indexOf('#rate=')!==0)return;
+  const no=decodeURIComponent(h.slice(6));
+  if(no)$('#rateNo').value=no;
+  $('#rateCard').scrollIntoView({behavior:'smooth',block:'center'});
+  setTimeout(()=>$('#stars').children[4]&&hoverStar(0),400);
+}
+
+drawStars();
+loadSummary();
+
+loadData().then(()=>{openFromHash();openRateFromHash()});
+window.addEventListener('hashchange',()=>{
+  if(location.hash.indexOf('#doc=')===0)openFromHash();
+  if(location.hash.indexOf('#rate=')===0)openRateFromHash();
+});
 setInterval(loadData,45000);
 </script>
 </body>
