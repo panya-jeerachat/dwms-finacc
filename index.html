@@ -352,7 +352,7 @@ const CONFIG = {
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
   // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
-  ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbwqh_-WcVsZ59rGpT5E44JtoIS4GRxi39Lf25432_oQmbt8murVEZy4zUUtFiw3Kwo/exec',
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbzNd46gQLh_Qc-4EiS87IC2nsFlgyht-xkc9Rz_gkE4HxHgTOZwGcgXsYJX0dBx30_1/exec',
 
   // QR บนใบปะหน้าจะชี้ไปที่ไหน
   //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
@@ -364,7 +364,11 @@ const CONFIG = {
 };
 
 const SHEET_ID = CONFIG.SHEET_ID, GID = CONFIG.GID, SLA = CONFIG.SLA;
-const PAPER=10, CO2=0.0086, MINS=45;
+/* ตัวเลขที่ใช้ประเมินผลลัพธ์ด้านสิ่งแวดล้อมและเวลา
+   PAPER = จำนวนกระดาษที่ประหยัดได้ต่อหนึ่งเรื่อง (แผ่น)
+   CO2   = คาร์บอนไดออกไซด์ต่อกระดาษหนึ่งแผ่น (กิโลกรัม)
+   MINS  = เวลาที่ประหยัดได้ต่อหนึ่งเรื่อง (นาที) */
+const PAPER=30, CO2=0.0086, MINS=45;
 
 /* ลำดับ 9 ขั้นตอน — ต้องเรียงตรงกับคอลัมน์ F ถึง N ในชีต */
 const STEPS=['ผู้รับ','ฝ่ายควบคุมงบประมาณ','หัวหน้ากลุ่มงาน','ฝ่ายบุคคล','หัวหน้าสำนักงานเลขานุการคณบดี',
