@@ -955,10 +955,43 @@ function paintSummary(sm){
     : '';
 }
 
+/* อ่านผลประเมินจากชีตโดยตรงด้วยวิธีเดียวกับที่อ่านทะเบียนหนังสือ
+   เร็วกว่าและไม่ต้องพึ่ง Apps Script ถ้าอ่านไม่ได้จริง ๆ ค่อยถอยไปถามเว็บแอปแทน */
 function loadSummary(){
-  apiCall('getRatingSummary',[]).then(paintSummary).catch(()=>{
-    $('#rCount').textContent='โหลดสรุปผลประเมินไม่ได้';
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq`
+          + `?tqx=out:json&sheet=Ratings&headers=1&_=${Date.now()}`;
+  fetch(url).then(r=>r.text()).then(t=>{
+    const j=JSON.parse(t.substring(t.indexOf('{'),t.lastIndexOf('}')+1));
+    const rows=(j.table.rows||[]).map(r=>(r.c||[]).map(c=>c?(c.f??c.v):null));
+    paintSummary(summaryFrom(rows));
+  }).catch(()=>{
+    // สำรอง: ขอสรุปจากเว็บแอป เผื่อชีตไม่ได้เปิดให้อ่านสาธารณะ
+    apiCall('getRatingSummary',[]).then(paintSummary).catch(e=>{
+      $('#rAvg').textContent='–';
+      $('#rCount').innerHTML='โหลดสรุปผลไม่ได้ '
+        + '<button onclick="loadSummary()" style="background:none;border:0;color:var(--pink);'
+        + 'text-decoration:underline;cursor:pointer;font-family:inherit;font-size:12px">ลองใหม่</button>'
+        + `<div style="font-size:10.5px;color:#94a3b8;margin-top:4px">${esc(e.message||'')}</div>`;
+    });
   });
+}
+
+/* สรุปคะแนนจากแถวดิบในชีต — คอลัมน์: เวลา, คะแนน, ความคิดเห็น, หมายเลขหนังสือ, ช่องทาง */
+function summaryFrom(rows){
+  let sum=0,count=0;
+  const dist=[0,0,0,0,0], recent=[];
+  for(let i=rows.length-1;i>=0;i--){
+    const sc=Math.round(Number(rows[i][1]));
+    if(!(sc>=1&&sc<=5))continue;
+    sum+=sc;count++;dist[sc-1]++;
+    const cm=String(rows[i][2]||'').trim();
+    if(cm&&recent.length<12){
+      const d=pDate(rows[i][0]);
+      recent.push({score:sc,comment:cm,
+        time:d?d.toLocaleDateString('th-TH',{day:'2-digit',month:'short'}):String(rows[i][0]||'')});
+    }
+  }
+  return {count:count,average:count?Math.round(sum/count*100)/100:0,dist:dist,recent:recent};
 }
 
 /* เปิดจากลิงก์ในอีเมล #rate=เลขหนังสือ ให้เลื่อนมาที่แบบประเมินและเติมเลขให้ */
