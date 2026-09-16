@@ -90,6 +90,9 @@ tr.hotrow{box-shadow:inset 4px 0 0 var(--hot)}
 .al:hover{transform:translateY(-3px)}.al.on{outline:2.5px solid var(--pink);outline-offset:2px}
 .al b{display:block;font-size:22px}.al span{font-size:11.2px;color:var(--muted)}
 .al.urgent{animation:shake 2.4s ease-in-out infinite}
+/* การ์ดค่าเฉลี่ยวันที่สำเร็จ — เป็นตัวเลขสรุป ไม่ใช่ตัวกรอง จึงไม่ให้กดและแยกสีพื้นออกมา */
+.al.avg{cursor:default;background:linear-gradient(135deg,var(--pink4),#fff);border-color:var(--pink3)}
+.al.avg:hover{transform:none}
 @keyframes shake{0%,92%,100%{transform:translateX(0)}94%{transform:translateX(-4px)}96%{transform:translateX(4px)}98%{transform:translateX(-2px)}}
 /* analytics */
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-top:16px}
@@ -423,7 +426,7 @@ const CONFIG = {
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
   // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
-  ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbzNd46gQLh_Qc-4EiS87IC2nsFlgyht-xkc9Rz_gkE4HxHgTOZwGcgXsYJX0dBx30_1/exec',
 
   // QR บนใบปะหน้าจะชี้ไปที่ไหน
   //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
@@ -574,11 +577,26 @@ function kpi(){
   count('#k1',n);count('#k2',dn);count('#k3',run);count('#k4',late);
   count('#k5',n*PAPER);count('#k6',n*PAPER*CO2,2);count('#k7',n*MINS);count('#k8',avg,1);
   $('#k2p').textContent=(n?Math.round(dn/n*100):0)+'%';
-  $('#alerts').innerHTML=[{k:'ok',t:'ปกติ ≤7 วัน'},{k:'7',t:'เกิน 7 วัน'},{k:'15',t:'เกิน 15 วัน'},
-   {k:'30',t:'เกิน 30 วัน'},{k:'60',t:'เกิน 60 วัน'},{k:'90',t:'เกิน 90 วัน'},{k:'120',t:'⚠ เร่งด่วน ≥120 วัน'}]
-   .map(o=>{const T=TIERS.find(x=>x.key===o.k),c=ROWS.filter(r=>r.tier.key===o.k).length;
-   return `<div class="al ${o.k==='120'&&c?'urgent':''} ${TIER_F===o.k?'on':''}" data-k="${o.k}" onclick="tierFilter('${o.k}')">
-    <b style="color:${T.c}">${c}</b><span>${o.t}</span></div>`}).join('');
+  /* การ์ดช่วงเวลา — ช่องสุดท้ายรวมทุกเรื่องที่เกิน 60 วันไว้ด้วยกัน จะได้ไม่มีเรื่องไหนตกหล่น
+     แล้วต่อท้ายด้วยค่าเฉลี่ยวันที่ใช้จริงของเรื่องที่ปิดไปแล้ว */
+  const bands=[{k:'ok',t:'ปกติ ≤7 วัน'},{k:'7',t:'เกิน 7 วัน'},{k:'15',t:'เกิน 15 วัน'},
+   {k:'30',t:'เกิน 30 วัน'},{k:'60+',t:'เกิน 60 วัน'}];
+
+  // เรื่องที่ทำเสร็จแล้ว ใช้เวลาเฉลี่ยกี่วันนับจากวันที่เริ่มงาน
+  const fin=ROWS.filter(r=>r.isDone);
+  const avgDone=fin.length?fin.reduce((s,r)=>s+r.elapsed,0)/fin.length:0;
+
+  $('#alerts').innerHTML = bands.map(o=>{
+    const T = o.k==='60+' ? TIERS.find(x=>x.key==='60') : TIERS.find(x=>x.key===o.k);
+    const c = o.k==='60+'
+      ? ROWS.filter(r=>r.elapsed>=60).length
+      : ROWS.filter(r=>r.tier.key===o.k).length;
+    return `<div class="al ${o.k==='60+'&&c?'urgent':''} ${TIER_F===o.k?'on':''}" data-k="${o.k}" onclick="tierFilter('${o.k}')">
+     <b style="color:${T.c}">${c}</b><span>${o.t}</span></div>`;
+  }).join('')
+  + `<div class="al avg" title="นับเฉพาะเรื่องที่ดำเนินการเสร็จสิ้นแล้ว ${fin.length} เรื่อง">
+      <b style="color:var(--pink)">${fin.length?nf(Math.round(avgDone*10)/10):'–'}</b>
+      <span>⏱ ค่าเฉลี่ยวันที่สำเร็จ${fin.length?' (วัน)':''}</span></div>`;
 }
 
 /* ========= กราฟวิเคราะห์ ========= */
@@ -660,7 +678,8 @@ function render(){
     if(st&&r.status!==st)return false;if(ct&&r.cat!==ct)return false;
     if(dp&&r.dep!==dp)return false;if(ow&&r.owner!==ow)return false;
     if(sl==='ok'&&r.over>0)return false;if(sl==='over'&&r.over<=0)return false;if(sl==='120'&&r.elapsed<120)return false;
-    if(TIER_F&&r.tier.key!==TIER_F)return false;
+    if(TIER_F==='60+'){ if(r.elapsed<60)return false; }
+    else if(TIER_F&&r.tier.key!==TIER_F)return false;
     if(d1&&(!r.start||r.start<d1))return false;if(d2&&(!r.start||r.start>d2))return false;return true;
   }).sort((a,b)=>b.i-a.i);
   $('#cnt').textContent=VIEW.length;
