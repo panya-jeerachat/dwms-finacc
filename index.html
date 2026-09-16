@@ -426,7 +426,7 @@ const CONFIG = {
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
   // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
-  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbzNd46gQLh_Qc-4EiS87IC2nsFlgyht-xkc9Rz_gkE4HxHgTOZwGcgXsYJX0dBx30_1/exec',
+  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
 
   // QR บนใบปะหน้าจะชี้ไปที่ไหน
   //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
@@ -881,8 +881,15 @@ function apiCall(fn,args){
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({fn:fn,args:args})})
     .then(r=>r.text())
-    .then(t=>{let j;try{j=JSON.parse(t)}catch(e){throw new Error('เว็บแอปตอบกลับไม่ถูกรูปแบบ')}
-      if(!j.ok)throw new Error(j.message||'เกิดข้อผิดพลาด');return j.data});
+    .then(t=>{
+      let j;
+      try{ j=JSON.parse(t) }catch(e){
+        const head=String(t||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110);
+        const err=new Error('เว็บแอปตอบกลับไม่ถูกรูปแบบ'+(head?' — '+head:''));
+        err.notJson=true; throw err;
+      }
+      if(!j.ok)throw new Error(j.message||'เกิดข้อผิดพลาด');
+      return j.data});
 }
 
 function drawStars(){
@@ -910,13 +917,30 @@ function rateCount(){
   c.style.color = n>=300?'#e11d48':(n>260?'#b45309':'#94a3b8');
 }
 
+/* ทางสำรอง: ส่งคะแนนผ่าน GET เผื่อ POST ถูกกั้นหรือเว็บแอปตอบกลับมาเป็นหน้า HTML */
+function sendRateByGet(payload){
+  const q=Object.keys(payload).map(k=>k+'='+encodeURIComponent(payload[k]||'')).join('&');
+  const url=CONFIG.ADMIN_URL+(CONFIG.ADMIN_URL.indexOf('?')>-1?'&':'?')
+          +'page=api&action=rate&'+q+'&_='+Date.now();
+  return fetch(url).then(r=>r.text()).then(t=>{
+    let j;try{j=JSON.parse(t)}catch(e){
+      const head=String(t||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,110);
+      throw new Error('เว็บแอปตอบกลับไม่ถูกรูปแบบ'+(head?' — '+head:''));
+    }
+    if(!j.ok)throw new Error(j.message||'เกิดข้อผิดพลาด');
+    return j.data;
+  });
+}
+
 function sendRate(){
   if(!RATE_SCORE){rateMsg('กรุณาเลือกจำนวนดาวก่อนส่ง',false);return}
   const btn=$('#rateSend');
   const label=btn.querySelector('span');
   btn.disabled=true;label.textContent='กำลังส่ง…';
-  apiCall('submitRating',[{score:RATE_SCORE,comment:$('#rateComment').value.trim(),
-                           no:RATE_NO,from:RATE_NO?'อีเมลแจ้งผล':'แดชบอร์ด'}])
+  const payload={score:RATE_SCORE,comment:$('#rateComment').value.trim(),
+                 no:RATE_NO,from:RATE_NO?'อีเมลแจ้งผล':'แดชบอร์ด'};
+  apiCall('submitRating',[payload])
+    .catch(e=>sendRateByGet(payload))     // POST ไม่ผ่าน ลองอีกทางก่อนยอมแพ้
     .then(res=>{
       btn.disabled=false;label.textContent='ส่งคะแนนประเมิน';
       try{localStorage.setItem('finacc_rated',new Date().toISOString())}catch(e){}
@@ -928,7 +952,22 @@ function sendRate(){
     })
     .catch(e=>{
       btn.disabled=false;label.textContent='ส่งคะแนนประเมิน';
-      rateMsg('ส่งไม่สำเร็จ: '+e.message,false);
+      const m=$('#rateMsg');
+      m.className='rmsg show bad';
+
+      // ข้อความสองแบบนี้แปลว่าเว็บแอปยังรันโค้ดเวอร์ชันเก่าอยู่ ไม่ใช่ปัญหาของผู้ใช้
+      const oldVersion = /ไม่อนุญาตให้เรียกใช้งาน|ไม่รู้จัก action/.test(e.message||'');
+      m.innerHTML = oldVersion
+        ? '<b>ระบบยังไม่พร้อมรับการประเมิน</b><br>'
+          + 'เว็บแอปที่เชื่อมอยู่ยังใช้โค้ดเวอร์ชันเก่า จึงยังไม่รู้จักคำสั่งรับคะแนน'
+          + '<div style="font-size:11.5px;opacity:.85;margin-top:8px;line-height:1.75">'
+          + '<b>แจ้งผู้ดูแลระบบ:</b> วาง Code.gs ล่าสุด → Deploy → Manage deployments → '
+          + 'ดินสอ → <b>Version เลือก New version</b> → Deploy<br>'
+          + 'ตรวจว่าใช้ได้แล้วโดยเปิดลิงก์เว็บแอปเติม <b>?page=api&action=ping</b> ต่อท้าย '
+          + 'ต้องเห็นคำว่า pong</div>'
+        : '<b>ส่งคะแนนไม่สำเร็จ</b><br>' + esc(e.message)
+          + '<div style="font-size:11.5px;opacity:.85;margin-top:6px">'
+          + 'แจ้งผู้ดูแลระบบให้ตรวจสอบว่า Deploy เวอร์ชันล่าสุดแล้ว และตั้ง Who has access เป็น Anyone</div>';
     });
 }
 function rateMsg(text,ok){
