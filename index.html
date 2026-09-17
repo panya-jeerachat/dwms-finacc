@@ -93,6 +93,10 @@ tr.hotrow{box-shadow:inset 4px 0 0 var(--hot)}
 /* การ์ดค่าเฉลี่ยวันที่สำเร็จ — เป็นตัวเลขสรุป ไม่ใช่ตัวกรอง จึงไม่ให้กดและแยกสีพื้นออกมา */
 .al.avg{cursor:default;background:linear-gradient(135deg,var(--pink4),#fff);border-color:var(--pink3)}
 .al.avg:hover{transform:none}
+/* ปุ่มประทับสถานะในหน้ารายละเอียด — สำหรับเจ้าหน้าที่ที่สแกน QR เข้ามาแล้วเข้าระบบอยู่ */
+.stampbtn{background:linear-gradient(135deg,var(--pink),var(--pink2));color:#fff;
+  box-shadow:0 6px 16px rgba(5,150,105,.28);font-weight:700}
+.stampbtn:hover{filter:saturate(1.1)}
 @keyframes shake{0%,92%,100%{transform:translateX(0)}94%{transform:translateX(-4px)}96%{transform:translateX(4px)}98%{transform:translateX(-2px)}}
 /* analytics */
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;margin-top:16px}
@@ -369,9 +373,10 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
     <div class="sec"><h4>📝 หมายเหตุ</h4><div id="mnote" style="font-size:13.2px"></div></div>
    </div>
    <div>
-    <div class="qrbox"><div id="qr"></div><p>สแกนเพื่อติดตามสถานะเรื่องนี้แบบเรียลไทม์</p>
+    <div class="qrbox"><div id="qr"></div><p>สแกนเพื่อดูสถานะเรื่องนี้แบบเรียลไทม์ ไม่ต้องเข้าระบบ<br>
+     <span style="color:#5f7a68">เจ้าหน้าที่ที่เข้าระบบแล้วกดปุ่มประทับสถานะด้านล่างได้ทันที</span></p>
      <div class="stack">
-      <button class="btn" id="bstamp" onclick="openStamp()" style="display:none">🖊️ ประทับสถานะ (สำหรับเจ้าหน้าที่)</button>
+      <button class="btn stampbtn" id="bstamp" onclick="openStamp()" style="display:none">🖊️ ประทับสถานะ (สำหรับเจ้าหน้าที่)</button>
       <button class="btn" id="bfile">📎 เปิด/ดาวน์โหลดบันทึกข้อความ</button>
       <button class="btn ghost" onclick="saveQR()">💾 บันทึก QR Code เป็นรูป</button>
       <button class="btn ghost" onclick="previewA4()">👁️ พรีวิวเอกสาร</button>
@@ -403,7 +408,8 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
    <div class="a4cert" id="a4cert"></div>
   </div>
   <div>
-   <div class="a4qrbox"><div id="a4qr"></div><p>สแกนเพื่อดูสถานะล่าสุดแบบเรียลไทม์เฉพาะงานนี้ โดยไม่ต้องเข้าระบบ</p></div>
+   <div class="a4qrbox"><div id="a4qr"></div><p>สแกนเพื่อดูสถานะล่าสุดของเรื่องนี้แบบเรียลไทม์ โดยไม่ต้องเข้าระบบ<br>
+    เจ้าหน้าที่ที่เข้าระบบแล้ว กดปุ่มประทับสถานะในหน้าที่เปิดขึ้นมาได้ทันที</p></div>
   </div>
  </div>
  <div class="a4foot">พิมพ์เมื่อ <span id="a4d"></span> · มาตรฐานการเดินหนังสือ ≤ 7 วันทำการ · ระบบกำกับติดตามหนังสือ EN-MSU · พัฒนาโดย นายปัญญา จีระฉัตร</div>
@@ -433,10 +439,12 @@ const CONFIG = {
   // ใช้แบบมี /a/macros/msu.ac.th/ เพื่อให้ Chrome ที่ล็อกอินหลายบัญชีเลือกบัญชี MSU ได้ถูก
   ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
 
-  // QR บนใบปะหน้าจะชี้ไปที่ไหน
-  //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
-  //   'track' = หน้าติดตามสถานะสาธารณะ (คนนอกดูความคืบหน้าได้ แต่ประทับไม่ได้)
-  QR_TARGET: 'scan',
+  // QR บนใบปะหน้าและในหน้าจอจะชี้ไปที่ไหน
+  //   'track' = หน้าติดตามสถานะสาธารณะ ★ ใช้แบบนี้
+  //             ใครสแกนก็ดูความคืบหน้าได้ทันทีโดยไม่ต้องเข้าระบบ
+  //             ส่วนเจ้าหน้าที่ที่เข้าระบบแล้ว กดปุ่ม "ประทับสถานะ" ในหน้าที่เปิดขึ้นมาได้เลย
+  //   'scan'  = ข้ามไปหน้าประทับสถานะโดยตรง (คนทั่วไปจะเจอหน้าให้เข้าระบบ)
+  QR_TARGET: 'track',
 
   // ลิงก์หน้าสแกน — กรอกให้แล้ว ไม่ต้องแก้ (เป็นหน้าสแกนในเว็บแอปเดียวกัน)
   SCAN_URL: 'https://panya-jeerachat.github.io/dwms-finacc/scanner.html'
