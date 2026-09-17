@@ -425,8 +425,13 @@ const CONFIG = {
   // ลิงก์สาธารณะของหน้านี้ — กรอกให้แล้ว ไม่ต้องแก้
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
-  // ลิงก์เว็บแอปหน้าผู้ดูแล — กรอกให้แล้ว ไม่ต้องแก้
-  ADMIN_URL: 'https://script.google.com/macros/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
+  // ลิงก์เว็บแอปแบบสาธารณะ — ใช้ "ส่งข้อมูล" เบื้องหลัง เช่น ส่งคะแนนประเมิน
+  // ต้องเป็นลิงก์แบบนี้เท่านั้น (ไม่มี /a/macros/...) ไม่งั้นเบราว์เซอร์จะกั้นเพราะบังคับล็อกอินก่อน
+  API_URL: 'https://script.google.com/macros/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
+
+  // ลิงก์สำหรับ "ปุ่มเปิดหน้าผู้ดูแล" บนแถบด้านบน
+  // ใช้แบบมี /a/macros/msu.ac.th/ เพื่อให้ Chrome ที่ล็อกอินหลายบัญชีเลือกบัญชี MSU ได้ถูก
+  ADMIN_URL: 'https://script.google.com/a/macros/msu.ac.th/s/AKfycbw-f78m2cJyXqS9UOQ0JghWn9xOGKNLAz-vLb_KRG14QseqjuRvz9MYvcJbfRwGWjc/exec',
 
   // QR บนใบปะหน้าจะชี้ไปที่ไหน
   //   'scan'  = หน้าประทับสถานะ (เจ้าหน้าที่ส่องด้วยแอปกล้องของมือถือแล้วประทับได้เลย) ★ แนะนำ
@@ -876,8 +881,8 @@ let RATE_NO='';
 
 /* เรียกเว็บแอปของ Apps Script — ส่งเป็น text/plain เพื่อไม่ให้เบราว์เซอร์ยิง preflight */
 function apiCall(fn,args){
-  if(!CONFIG.ADMIN_URL)return Promise.reject(new Error('ยังไม่ได้ตั้งค่าลิงก์เว็บแอปในไฟล์นี้'));
-  return fetch(CONFIG.ADMIN_URL,{method:'POST',
+  if(!CONFIG.API_URL)return Promise.reject(new Error('ยังไม่ได้ตั้งค่าลิงก์เว็บแอปในไฟล์นี้'));
+  return fetch(CONFIG.API_URL,{method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({fn:fn,args:args})})
     .then(r=>r.text())
@@ -920,7 +925,7 @@ function rateCount(){
 /* ทางสำรอง: ส่งคะแนนผ่าน GET เผื่อ POST ถูกกั้นหรือเว็บแอปตอบกลับมาเป็นหน้า HTML */
 function sendRateByGet(payload){
   const q=Object.keys(payload).map(k=>k+'='+encodeURIComponent(payload[k]||'')).join('&');
-  const url=CONFIG.ADMIN_URL+(CONFIG.ADMIN_URL.indexOf('?')>-1?'&':'?')
+  const url=CONFIG.API_URL+(CONFIG.API_URL.indexOf('?')>-1?'&':'?')
           +'page=api&action=rate&'+q+'&_='+Date.now();
   return fetch(url).then(r=>r.text()).then(t=>{
     let j;try{j=JSON.parse(t)}catch(e){
