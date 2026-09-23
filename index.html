@@ -269,7 +269,7 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 
 <div class="ribbon">
   <h2>📚 แดชบอร์ดกำกับติดตามสถานะหนังสือแบบเรียลไทม์</h2>
-  <p>เชื่อมต่อ Google Sheets โดยตรง · มาตรฐานการเดินหนังสือ ≤ 7 วัน · สแกน QR ติดตามได้ทุกที่ทุกเวลา</p>
+  <p>เชื่อมต่อ Google Sheets โดยตรง · มาตรฐานการเดินหนังสือ ≤ 7 วันทำการ · สแกน QR ติดตามได้ทุกที่ทุกเวลา</p>
   <div class="rgrid">
     <div class="rk"><b id="k1">0</b><span>📄 หนังสือทั้งหมด</span></div>
     <div class="rk"><b id="k2">0</b><span>✅ สำเร็จ (<i id="k2p">0%</i>)</span></div>
@@ -300,7 +300,7 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
   </div>
   <div class="tblwrap">
     <table class="tbl"><thead><tr>
-      <th>เลขหนังสือ</th><th>เรื่อง</th><th>วันที่เริ่ม</th><th>ผ่านมา</th>
+      <th>เลขหนังสือ</th><th>เรื่อง</th><th>วันที่เริ่ม</th><th>ผ่านมา<br><small style="font-weight:400;opacity:.7">วันทำการ</small></th>
       <th>ความคืบหน้า</th><th>ขั้นตอนปัจจุบัน</th><th>สถานะ</th><th>ระดับเวลา</th><th></th>
     </tr></thead><tbody id="tb"><tr><td colspan="9"><div class="skel"></div><div class="skel"></div><div class="skel"></div></td></tr></tbody></table>
   </div>
@@ -428,6 +428,35 @@ const CONFIG = {
   GID: '0',                 // แท็บ "ชีต1"
   SLA: 7,                   // มาตรฐานการเดินหนังสือ (วันทำการ)
 
+  // นับเฉพาะวันทำการ ตัดเสาร์ อาทิตย์ และวันหยุดราชการออกจากการคำนวณ
+  // ตั้งเป็น false ถ้าอยากกลับไปนับทุกวันตามปฏิทิน
+  WORKDAY_ONLY: true,
+
+  /* วันหยุดราชการ — แก้ไขได้ที่นี่เมื่อขึ้นปีใหม่ หรือเมื่อ ครม. ประกาศวันหยุดพิเศษเพิ่ม
+     รูปแบบ 'ปีค.ศ.-เดือน-วัน'  (พ.ศ. 2569 = ค.ศ. 2026)
+     อีกทางหนึ่ง: สร้างแท็บชื่อ Holidays ในชีตเดียวกับทะเบียนหนังสือ
+     ใส่วันที่ไว้คอลัมน์แรก ระบบจะอ่านมารวมให้เองโดยไม่ต้องแก้ไฟล์นี้ */
+  HOLIDAYS: [
+    '2026-01-01', // วันขึ้นปีใหม่
+    '2026-01-02', // วันหยุดพิเศษ
+    '2026-03-03', // วันมาฆบูชา
+    '2026-04-06', // วันจักรี
+    '2026-04-13', // วันสงกรานต์
+    '2026-04-14', // วันสงกรานต์
+    '2026-04-15', // วันสงกรานต์
+    '2026-05-01', // วันแรงงานแห่งชาติ
+    '2026-06-03', // วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี
+    '2026-07-28', // วันเฉลิมพระชนมพรรษา พระบาทสมเด็จพระเจ้าอยู่หัว
+    '2026-07-29', // วันอาสาฬหบูชา
+    '2026-07-30', // วันเข้าพรรษา
+    '2026-08-12', // วันแม่แห่งชาติ
+    '2026-10-13', // วันคล้ายวันสวรรคต ร.9
+    '2026-10-23', // วันปิยมหาราช
+    '2026-12-07', // ชดเชยวันพ่อแห่งชาติ (5 ธ.ค. ตรงกับวันเสาร์)
+    '2026-12-10', // วันรัฐธรรมนูญ
+    '2026-12-31'  // วันสิ้นปี
+  ],
+
   // ลิงก์สาธารณะของหน้านี้ — กรอกให้แล้ว ไม่ต้องแก้
   PUBLIC_URL: 'https://panya-jeerachat.github.io/dwms-finacc/',
 
@@ -492,6 +521,51 @@ function pDate(v){if(!v)return null;if(v instanceof Date)return v;
 const fTH=d=>d?d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}):'-';
 const fFull=d=>d?d.toLocaleString('th-TH',{dateStyle:'long',timeStyle:'short'}):'-';
 const dayDiff=(a,b)=>Math.max(0,Math.floor((b-a)/864e5));
+
+/* ── การนับวันทำการ ────────────────────────────────────────────────
+   เสาร์ อาทิตย์ และวันหยุดราชการไม่ถูกนับเป็นวันทำงาน
+   รายการวันหยุดมาจาก CONFIG.HOLIDAYS รวมกับแท็บ Holidays ในชีต (ถ้ามี) */
+const dkey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+let HOLIDAY_SET=new Set(CONFIG.HOLIDAYS||[]);
+const isWorkday=d=>{const w=d.getDay();return w!==0&&w!==6&&!HOLIDAY_SET.has(dkey(d))};
+
+/* จำนวนวันทำการระหว่างสองวัน ไม่นับวันเริ่มต้น (เริ่มวันนี้เสร็จวันนี้ = 0 วัน) */
+function workDayDiff(a,b){
+  if(!a||!b)return 0;
+  const d=new Date(a.getFullYear(),a.getMonth(),a.getDate());
+  const end=new Date(b.getFullYear(),b.getMonth(),b.getDate());
+  if(end<=d)return 0;
+  let n=0,guard=0;
+  while(d<end&&guard++<4000){
+    d.setDate(d.getDate()+1);
+    if(isWorkday(d))n++;
+  }
+  return n;
+}
+
+/* เลือกวิธีนับตามที่ตั้งไว้ */
+const spanDays=(a,b)=>CONFIG.WORKDAY_ONLY?workDayDiff(a,b):dayDiff(a,b);
+
+/* อ่านวันหยุดเพิ่มเติมจากแท็บ Holidays ในชีต เพื่อให้ผู้ดูแลแก้เองได้โดยไม่ต้องแตะไฟล์นี้ */
+function loadHolidays(){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq`
+          + `?tqx=out:json&sheet=Holidays&_=${Date.now()}`;
+  return fetch(url).then(r=>r.text()).then(t=>{
+    const j=JSON.parse(t.substring(t.indexOf('{'),t.lastIndexOf('}')+1));
+    const add=[];
+    (j.table.rows||[]).forEach(row=>{
+      const cell=(row.c||[])[0];
+      if(!cell)return;
+      const d=pDate(cell.f??cell.v);
+      if(d&&!isNaN(d))add.push(dkey(d));
+    });
+    if(add.length){
+      HOLIDAY_SET=new Set([...(CONFIG.HOLIDAYS||[]),...add]);
+      return add.length;
+    }
+    return 0;
+  }).catch(()=>0);   // ไม่มีแท็บนี้ก็ไม่เป็นไร ใช้รายการในไฟล์ต่อไป
+}
 const tierOf=n=>TIERS.find(t=>n>=t.min);
 const nf=n=>n.toLocaleString('th-TH',{maximumFractionDigits:2});
 function conn(ok,msg){$('#ld').classList.toggle('bad',!ok);$('#conn').textContent=msg}
@@ -554,7 +628,7 @@ function build(cells){
     const isDone=/สำเร็จ|เสร็จ|อนุมัติแล้ว/.test(status);
     const isCancel=/ยกเลิก/.test(status);
     const closed=isDone||isCancel;
-    const elapsed=start?dayDiff(start,closed&&fin?fin:now):0;
+    const elapsed=start?spanDays(start,closed&&fin?fin:now):0;
 
     return {i,
       key:regNo,                                // ใช้ทำลิงก์ติดตาม / QR (ไม่เปลี่ยนแปลง)
@@ -592,8 +666,8 @@ function kpi(){
   $('#k2p').textContent=(n?Math.round(dn/n*100):0)+'%';
   /* การ์ดช่วงเวลา — ช่องสุดท้ายรวมทุกเรื่องที่เกิน 60 วันไว้ด้วยกัน จะได้ไม่มีเรื่องไหนตกหล่น
      แล้วต่อท้ายด้วยค่าเฉลี่ยวันที่ใช้จริงของเรื่องที่ปิดไปแล้ว */
-  const bands=[{k:'ok',t:'ปกติ ≤7 วัน'},{k:'7',t:'เกิน 7 วัน'},{k:'15',t:'เกิน 15 วัน'},
-   {k:'30',t:'เกิน 30 วัน'},{k:'60+',t:'เกิน 60 วัน'}];
+  const bands=[{k:'ok',t:'ปกติ ≤7 วันทำการ'},{k:'7',t:'เกิน 7 วันทำการ'},{k:'15',t:'เกิน 15 วันทำการ'},
+   {k:'30',t:'เกิน 30 วันทำการ'},{k:'60+',t:'เกิน 60 วันทำการ'}];
 
   // เรื่องที่ทำเสร็จแล้ว ใช้เวลาเฉลี่ยกี่วันนับจากวันที่เริ่มงาน
   const fin=ROWS.filter(r=>r.isDone);
@@ -609,7 +683,7 @@ function kpi(){
   }).join('')
   + `<div class="al avg" title="นับเฉพาะเรื่องที่ดำเนินการเสร็จสิ้นแล้ว ${fin.length} เรื่อง">
       <b style="color:var(--pink)">${fin.length?nf(Math.round(avgDone*10)/10):'–'}</b>
-      <span>⏱ ค่าเฉลี่ยวันที่สำเร็จ${fin.length?' (วัน)':''}</span></div>`;
+      <span>⏱ ค่าเฉลี่ยวันที่สำเร็จ${fin.length?' (วันทำการ)':''}</span></div>`;
 }
 
 /* ========= กราฟวิเคราะห์ ========= */
@@ -651,7 +725,7 @@ function analytics(){
       <div class="wt"><b>${esc(r.no)} ${esc(r.subj).slice(0,42)}${r.subj.length>42?'…':''}</b>
       <div class="sub">รอ: ${esc(cur)} · ${esc(r.dep)}</div></div>
       <div class="wd" style="color:${r.tier.c}">${r.over>0?'เกิน '+r.over+' วัน':r.elapsed+' วัน'}
-      <div class="sub">กำหนด ${SLA} วัน</div></div></div>`}).join('')
+      <div class="sub">กำหนด ${SLA} วันทำการ</div></div></div>`}).join('')
     :'<p style="color:var(--muted);font-size:13px;text-align:center;padding:20px">🎉 ไม่มีเรื่องค้าง ทุกเรื่องปิดครบแล้ว</p>';
 
   groupBar('#cDep','dep');groupBar('#cOwn','owner');groupBar('#cCat','cat');
@@ -739,8 +813,10 @@ function openM(i){
     return `<div class="st ${s.done?'done':''} ${s.skip?'skip':''} ${now?'now':''}"><b>${k+1}. ${s.label}</b>
      <span>${txt}</span></div>`}).join('');
   const rem=SLA-r.elapsed;
-  $('#msla').innerHTML=[['มาตรฐานการเดินหนังสือ',`ไม่เกิน ${SLA} วัน`],['ระยะเวลาที่ใช้ไป',`${r.elapsed} วัน`],
-   ['คงเหลือ / เกินกำหนด',r.closed?'ปิดเรื่องเรียบร้อย':(rem>=0?`เหลืออีก ${rem} วัน`:`เกินกำหนด ${r.elapsed-SLA} วัน`)],
+  $('#msla').innerHTML=[['มาตรฐานการเดินหนังสือ',`ไม่เกิน ${SLA} วันทำการ`],
+   ['ระยะเวลาที่ใช้ไป',`${r.elapsed} วันทำการ`],
+   ['วิธีนับ',CONFIG.WORKDAY_ONLY?'ไม่นับวันเสาร์ อาทิตย์ และวันหยุดราชการ':'นับทุกวันตามปฏิทิน'],
+   ['คงเหลือ / เกินกำหนด',r.closed?'ปิดเรื่องเรียบร้อย':(rem>=0?`เหลืออีก ${rem} วันทำการ`:`เกินกำหนด ${r.elapsed-SLA} วันทำการ`)],
    ['ระดับการแจ้งเตือน',r.closed?'ไม่มี (ปิดเรื่องแล้ว)':r.tier.txt],
    ['ข้อเสนอแนะ',r.closed?'จัดเก็บเอกสารเข้าแฟ้ม':advice(r)]]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
@@ -811,7 +887,7 @@ function buildA4(r){
  $('#a4kv').innerHTML=[['เลขทะเบียนรับเรื่อง',r.regNo],['เลขที่หนังสือที่ออกให้',r.issueNo||'ยังไม่ได้ออกเลข'],
   ['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],
   ['วันที่เริ่มงาน',fTH(r.start)],['วันที่ส่งคืนเจ้าของเรื่อง',r.fin?fTH(r.fin):'ยังไม่ส่งคืน'],
-  ['ระยะเวลาที่ใช้ไป',`${r.elapsed} วัน (มาตรฐาน ≤ ${SLA} วัน)`],
+  ['ระยะเวลาที่ใช้ไป',`${r.elapsed} วันทำการ (มาตรฐาน ≤ ${SLA} วันทำการ)`],
   ['ขั้นตอนปัจจุบัน',r.closed?'เสร็จสิ้นกระบวนการ':((r.steps.find(s=>!s.done&&!s.skip)||{}).label||'-')],
   ['หมายเหตุ',r.note||'-']].map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
  $('#a4cert').innerHTML=`<b>✅ การรับรองผลการดำเนินการแบบดิจิทัล</b><br>
@@ -1059,7 +1135,8 @@ function openRateFromHash(){
 drawStars();
 loadSummary();
 
-loadData().then(()=>{openFromHash();openRateFromHash()});
+/* โหลดวันหยุดจากชีตก่อน แล้วค่อยคำนวณ จะได้ไม่ต้องคิดใหม่สองรอบ */
+loadHolidays().then(()=>loadData()).then(()=>{openFromHash();openRateFromHash()});
 window.addEventListener('hashchange',()=>{
   if(location.hash.indexOf('#doc=')===0)openFromHash();
   if(location.hash.indexOf('#rate=')===0)openRateFromHash();
