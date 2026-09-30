@@ -765,6 +765,21 @@ function lookup(raw, fromCam){
     });
 }
 
+/* ไฟล์แนบของเรื่องนี้ — แสดงเป็นลิงก์แยกทีละไฟล์ */
+function fileLinks(list){
+  if (!list || !list.length) return '';
+  const label = u => {
+    try { return decodeURIComponent(u.split('?')[0].split('/').pop() || '') || 'ไฟล์แนบ'; }
+    catch (e) { return 'ไฟล์แนบ'; }
+  };
+  return '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)">'
+    + '<div class="lbl" style="margin-bottom:5px">ไฟล์แนบ ' + list.length + ' ไฟล์</div>'
+    + list.map(u => '<a href="' + esc(u) + '" target="_blank" rel="noopener" '
+        + 'style="display:block;font-size:12.5px;color:#1d4ed8;text-decoration:underline;'
+        + 'padding:3px 0;word-break:break-all">📎 ' + esc(label(u)) + '</a>').join('')
+    + '</div>';
+}
+
 function stateOf(doc, key){
   const v = String(doc.owners[key] || '').trim();
   if (v === SKIP_TEXT) return 'skip';
@@ -838,6 +853,7 @@ function renderDoc(doc){
         + 'ประเภท: ' + esc(doc.type || '-') + ' · เริ่ม ' + esc(doc.startDate || '-') + '<br>'
         + 'ผู้รับเรื่อง: ' + esc(doc.recip || '-') + (doc.dept ? ' · ' + esc(doc.dept) : '')
       + '</div>'
+      + fileLinks(doc.files)
     + '</div>'
     + reason
     + '<div class="card">' + steps + '</div>'

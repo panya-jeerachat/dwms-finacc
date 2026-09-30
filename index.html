@@ -377,7 +377,7 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
      <span style="color:#5f7a68">เจ้าหน้าที่ที่เข้าระบบแล้วกดปุ่มประทับสถานะด้านล่างได้ทันที</span></p>
      <div class="stack">
       <button class="btn stampbtn" id="bstamp" onclick="openStamp()" style="display:none">🖊️ ประทับสถานะ (สำหรับเจ้าหน้าที่)</button>
-      <button class="btn" id="bfile">📎 เปิด/ดาวน์โหลดบันทึกข้อความ</button>
+      <div id="bfiles" style="display:flex;flex-direction:column;gap:6px"></div>
       <button class="btn ghost" onclick="saveQR()">💾 บันทึก QR Code เป็นรูป</button>
       <button class="btn ghost" onclick="previewA4()">👁️ พรีวิวเอกสาร</button>
       <button class="btn ghost" onclick="printA4()">🖨️ พิมพ์ใบปะหน้า A4</button>
@@ -522,6 +522,32 @@ const fTH=d=>d?d.toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'n
 const fFull=d=>d?d.toLocaleString('th-TH',{dateStyle:'long',timeStyle:'short'}):'-';
 const dayDiff=(a,b)=>Math.max(0,Math.floor((b-a)/864e5));
 
+/* หนึ่งเรื่องแนบไฟล์ได้หลายไฟล์ เก็บรวมในช่องเดียว
+   ฟังก์ชันนี้แยกออกมาเป็นรายการ และซ่อมข้อมูลเก่าที่ลิงก์ติดกันเป็นพรืดให้ด้วย */
+function parseLinks(raw){
+  let t=String(raw==null?'':raw).trim();
+  if(!t)return [];
+  t=t.replace(/https:\/(?!\/)/g,'https://').replace(/http:\/(?!\/)/g,'http://');
+  return t.split(/[\r\n|,;]+|\s+(?=https?:\/\/)|(?=https?:\/\/)/)
+          .map(x=>x.trim())
+          .filter(x=>/^https?:\/\//i.test(x))
+          .filter((x,i,a)=>a.indexOf(x)===i);
+}
+function fileLabel(url){
+  try{ return decodeURIComponent(url.split('?')[0].split('/').pop()||'')||'ไฟล์แนบ'; }
+  catch(e){ return 'ไฟล์แนบ'; }
+}
+function fileIcon(url){
+  const n=fileLabel(url).toLowerCase();
+  if(/\.(jpe?g|png|gif|webp|heic|heif)$/.test(n))return '🖼️';
+  if(/\.pdf$/.test(n))return '📄';
+  if(/\.(docx?|rtf)$/.test(n))return '📝';
+  if(/\.(xlsx?|csv)$/.test(n))return '📊';
+  if(/\.(pptx?)$/.test(n))return '📽️';
+  if(/\.zip$/.test(n))return '🗜️';
+  return '📎';
+}
+
 /* ── การนับวันทำการ ────────────────────────────────────────────────
    เสาร์ อาทิตย์ และวันหยุดราชการไม่ถูกนับเป็นวันทำงาน
    รายการวันหยุดมาจาก CONFIG.HOLIDAYS รวมกับแท็บ Holidays ในชีต (ถ้ามี) */
@@ -642,7 +668,8 @@ function build(cells){
       status,isDone,isCancel,closed,
       note:g(16),                               // P หมายเหตุ
       cat:g(17)||g(26)||'ไม่ระบุประเภท',          // Q ประเภท · Z หมวดหมู่
-      file:g(18),                               // R ไฟล์ข้อมูล
+      file:g(18),                               // R ไฟล์ข้อมูล (อาจมีหลายลิงก์)
+      files:parseLinks(g(18)),
       start,fin,elapsed,
       over:closed?0:Math.max(0,elapsed-SLA),
       tier:tierOf(elapsed),
@@ -805,7 +832,7 @@ function openM(i){
    ['ประเภท/หมวดหมู่',r.cat],['ผู้รับเรื่อง',r.owner],['จากฝ่าย/ส่วนงาน',r.dep],['วันที่เริ่มงาน',fTH(r.start)],
    ['วันที่ส่งคืนเจ้าของเรื่อง',r.fin?fTH(r.fin):'ยังไม่ส่งคืน'],
    ['ความคืบหน้า',`${r.doneCnt}/${NSTEP} ขั้นตอน (${Math.round(r.doneCnt/NSTEP*100)}%)`],
-   ['ไฟล์บันทึกข้อความ',r.file?'มีไฟล์แนบ ✔':'ยังไม่มีไฟล์แนบ']]
+   ['ไฟล์แนบ',r.files&&r.files.length?('มี '+r.files.length+' ไฟล์ ✔'):'ยังไม่มีไฟล์แนบ']]
    .map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   $('#mtl').innerHTML=r.steps.map((s,k)=>{
     const now=!s.done&&!s.skip&&r.steps.slice(0,k).every(x=>x.done||x.skip)&&!r.closed;
@@ -828,8 +855,15 @@ function openM(i){
   // QR ชี้ไปตามที่ตั้งไว้ใน CONFIG.QR_TARGET
   $('#qr').innerHTML='';new QRCode($('#qr'),{text:qrLink(r),width:176,height:176,colorDark:'#059669',colorLight:'#ffffff'});
 
-  const bf=$('#bfile');
-  if(r.file){bf.textContent='📎 เปิด/ดาวน์โหลดบันทึกข้อความ';bf.onclick=()=>window.open(r.file,'_blank')}
+  // ไฟล์แนบ — แสดงเป็นปุ่มแยกทีละไฟล์ จะได้กดเปิดได้ถูกตัว
+  const bfs=$('#bfiles');
+  if(bfs){
+    const list=r.files&&r.files.length?r.files:[];
+    bfs.innerHTML = list.length
+      ? list.map((u,i)=>`<button class="btn" onclick="window.open('${esc(u)}','_blank')"
+          title="${esc(u)}">${fileIcon(u)} ${list.length>1?'ไฟล์ที่ '+(i+1)+' — ':''}${esc(fileLabel(u))}</button>`).join('')
+      : `<button class="btn" disabled style="opacity:.5;cursor:default">📎 ยังไม่มีไฟล์แนบ</button>`;
+  }
   else{bf.textContent='📎 ยังไม่มีไฟล์บันทึกข้อความ';bf.onclick=()=>alert('ยังไม่ได้แนบลิงก์ไฟล์ในคอลัมน์ "ไฟล์ข้อมูล"')}
   $('#bstamp').style.display=CONFIG.SCAN_URL?'block':'none';
   location.hash='doc='+encodeURIComponent(r.key);
