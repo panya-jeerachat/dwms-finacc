@@ -28,6 +28,29 @@ position:sticky;top:8px;z-index:40}
 .topbar img.logo{height:48px;border-radius:10px}
 .brand h1{font-size:18px;font-weight:800;background:linear-gradient(90deg,var(--pink),#34d399);-webkit-background-clip:text;background-clip:text;color:transparent}
 .brand p{font-size:12px;color:var(--muted)}
+
+/* ปุ่มระบบขอไปราชการ — ส้มสดใส ตัวอักษรขาว ชิดขวา */
+.travel-btn{order:99;position:relative;overflow:hidden;isolation:isolate;display:inline-flex;align-items:center;gap:10px;text-decoration:none;
+color:#fff;padding:7px 15px 7px 8px;border-radius:14px;border:1.5px solid #c2410c;
+background:linear-gradient(120deg,#ea580c,#f97316,#fb923c,#f97316,#ea580c);background-size:300% 300%;
+animation:tbFlow 8s ease-in-out infinite;box-shadow:0 4px 14px rgba(234,88,12,.35);transition:transform .2s,box-shadow .2s}
+.travel-btn::before{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;z-index:-1;
+background:linear-gradient(100deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-20deg);animation:tbShine 5s ease-in-out infinite}
+.travel-btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(194,65,12,.45)}
+.travel-btn:active{transform:scale(.98)}
+.travel-btn:focus-visible{outline:3px solid #fed7aa;outline-offset:2px}
+.tb-ico{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:#fff;box-shadow:0 2px 6px rgba(124,45,18,.3)}
+.tb-ico svg{width:30px;height:30px;animation:tbBounce 2.2s ease-in-out infinite}
+.tb-txt{display:flex;flex-direction:column;line-height:1.15;text-shadow:0 1px 2px rgba(124,45,18,.45)}
+.tb-txt b{font-size:14px;font-weight:800;white-space:nowrap;color:#fff}
+.tb-txt small{font-size:11px;color:#fff;font-weight:600}
+.tb-arrow{font-weight:800;color:#fff;transition:transform .2s}
+.travel-btn:hover .tb-arrow{transform:translateX(4px)}
+@keyframes tbFlow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes tbShine{0%{left:-70%}55%,100%{left:130%}}
+@keyframes tbBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.travel-btn,.travel-btn::before,.tb-ico svg{animation:none}}
+@media(max-width:640px){.travel-btn{width:100%;justify-content:center}}
 .live{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:#fff;
 border:1px solid var(--line);border-radius:999px;padding:6px 13px}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);animation:pulse 1.8s infinite}
@@ -262,6 +285,23 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
     <h1>ระบบกำกับติดตามหนังสือภายใน — ฝ่ายการเงินและบัญชี</h1>
     <p>คณะวิศวกรรมศาสตร์ มหาวิทยาลัยมหาสารคาม · Faculty of Engineering, MSU</p>
   </div>
+  <a class="travel-btn" href="https://msutravel-v1.web.app/login.html" target="_blank" rel="noopener" title="เข้าสู่ระบบขอไปราชการ">
+    <span class="tb-ico"><svg viewBox="0 0 40 40" aria-hidden="true">
+      <path d="M7 22 L11 13 Q12 11 14.5 11 H25.5 Q28 11 29 13 L33 22 Z" fill="#fb923c"/>
+      <path d="M12.5 14 Q13 13 14.5 13 H19 V20 H10.5 Z" fill="#e0f2fe"/>
+      <path d="M21 13 H25.5 Q27 13 27.5 14 L30 20 H21 Z" fill="#e0f2fe"/>
+      <rect x="4" y="19" width="32" height="11" rx="5.5" fill="#f97316"/>
+      <circle cx="14" cy="23.5" r="2.2" fill="#431407"/><circle cx="14.7" cy="22.8" r=".8" fill="#fff"/>
+      <circle cx="26" cy="23.5" r="2.2" fill="#431407"/><circle cx="26.7" cy="22.8" r=".8" fill="#fff"/>
+      <path d="M18 26 Q20 28 22 26" stroke="#431407" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+      <circle cx="10" cy="26.5" r="1.8" fill="#fda4af" opacity=".85"/><circle cx="30" cy="26.5" r="1.8" fill="#fda4af" opacity=".85"/>
+      <circle cx="6.5" cy="22.5" r="1.4" fill="#fde047"/><circle cx="33.5" cy="22.5" r="1.4" fill="#fde047"/>
+      <circle cx="11.5" cy="30.5" r="3.6" fill="#431407"/><circle cx="11.5" cy="30.5" r="1.5" fill="#fed7aa"/>
+      <circle cx="28.5" cy="30.5" r="3.6" fill="#431407"/><circle cx="28.5" cy="30.5" r="1.5" fill="#fed7aa"/>
+    </svg></span>
+    <span class="tb-txt"><b>ระบบขอไปราชการ</b><small>เข้าสู่ระบบ</small></span>
+    <span class="tb-arrow">→</span>
+  </a>
   <div class="live"><span class="dot" id="ld"></span><span id="conn">เชื่อมต่อ…</span> · <span id="clock">--:--:--</span></div>
   <button class="btn ghost" onclick="loadData(1)">⟳ รีเฟรช</button>
   <button class="btn" onclick="exportCSV()">⬇ CSV</button>
