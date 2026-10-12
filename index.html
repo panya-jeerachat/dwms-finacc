@@ -187,14 +187,32 @@ tr.hotrow{box-shadow:inset 4px 0 0 var(--hot)}
 .wi .wt b{font-size:12.5px;display:block}
 .wi .wd{font-size:12px;font-weight:800;white-space:nowrap;text-align:right}
 /* modal */
-.ov{position:fixed;inset:0;background:rgba(59,16,38,.55);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+.ov{position:fixed;inset:0;background:rgba(59,16,38,.55);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:60;padding:16px;
+cursor:pointer}  /* เมาส์เป็นรูปนิ้วทั่วพื้นที่มืด = บอกผู้ใช้ว่าแตะตรงนี้เพื่อปิดได้ */
+.ov .modal{cursor:auto}
 .ov.show{display:flex;animation:fade .25s}@keyframes fade{from{opacity:0}to{opacity:1}}
 .modal{background:#fff;border-radius:26px;max-width:1020px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.3);animation:pop .32s cubic-bezier(.2,1.2,.3,1)}
 @keyframes pop{from{transform:translateY(30px) scale(.96);opacity:0}to{transform:none;opacity:1}}
-.mhead{background:linear-gradient(120deg,#059669,#10b981);color:#fff;padding:21px;position:sticky;top:0;z-index:5}
-.mhead h3{font-size:18.5px;font-weight:800;padding-right:40px}
-.x{position:absolute;top:15px;right:17px;background:rgba(255,255,255,.25);border:0;color:#fff;width:33px;height:33px;border-radius:50%;font-size:18px;cursor:pointer;transition:.2s}
-.x:hover{background:rgba(255,255,255,.45);transform:rotate(90deg)}
+.mhead{background:linear-gradient(120deg,#059669,#10b981);color:#fff;padding:21px 128px 21px 21px;position:sticky;top:0;z-index:5}
+.mhead h3{font-size:18.5px;font-weight:800}
+/* ปุ่มปิด — ใหญ่ เห็นชัด มีคำว่า "ปิด" และขยายพื้นที่กดออกไปรอบปุ่มอีก 12px
+   ผู้ใช้จึงไม่ต้องเล็งให้ตรงจุดเล็ก ๆ อีกต่อไป */
+.x{position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:6px;min-height:44px;
+padding:0 18px 0 14px;background:#fff;color:#047857;border:0;border-radius:999px;font-family:inherit;
+font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(4,47,30,.28);
+transition:background .15s,transform .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.x::after{content:"";position:absolute;inset:-12px}  /* พื้นที่กดเป็นสี่เหลี่ยม กดเฉียงมุมก็ยังโดน */
+.x .xi{font-size:18px;line-height:1}
+.x:hover{background:#ecfdf5;transform:scale(1.05)}
+.x:active{transform:scale(.96)}
+.x:focus-visible{outline:3px solid #fde68a;outline-offset:3px}
+@media(max-width:560px){.mhead{padding-right:74px}.x{padding:0;width:46px;justify-content:center}.x .xl{display:none}}
+/* แถบปิดด้านล่าง — ติดขอบล่างตลอด เลื่อนลงไปอ่านถึงไหนก็กดปิดได้ทันที */
+.mfoot{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:center;gap:10px 14px;
+flex-wrap:wrap;padding:12px 21px;background:rgba(255,255,255,.96);border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+.mfoot .btn{min-height:46px;min-width:220px;font-size:15px}
+.mfoot small{font-size:12px;color:var(--muted)}
+@media(hover:none){.mfoot .kb{display:none}}
 .mbody{padding:21px;display:grid;grid-template-columns:1.5fr .9fr;gap:21px}
 @media(max-width:860px){.mbody{grid-template-columns:1fr}}
 .sec{margin-bottom:19px}
@@ -231,14 +249,19 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 #a4{display:block;position:absolute;left:0;top:0;width:210mm;min-height:297mm;padding:16mm 14mm;background:#fff}@page{size:A4;margin:0}}
 #a4 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 /* พรีวิวเอกสารบนหน้าจอ (ไม่ใช่โหมดพิมพ์จริง) */
-#a4prevBackdrop{position:fixed;inset:0;background:rgba(15,46,29,.6);backdrop-filter:blur(5px);z-index:69;display:none}
+#a4prevBackdrop{position:fixed;inset:0;background:rgba(15,46,29,.6);backdrop-filter:blur(5px);z-index:69;display:none;cursor:pointer}
 #a4prevBackdrop.show{display:block}
-#a4.preview{display:block;position:fixed;left:50%;top:20px;transform:translateX(-50%);z-index:70;
+#a4.preview{display:block;position:fixed;left:0;right:0;margin:0 auto;top:20px;z-index:70;  /* จัดกึ่งกลางด้วย margin แอนิเมชันจะได้ไม่ดันกระดาษเยื้องขวา */
  width:210mm;max-width:94vw;max-height:92vh;overflow:auto;padding:16mm 14mm;background:#fff;
  border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.4);animation:pop .3s cubic-bezier(.2,1.2,.3,1)}
-#a4prevClose{display:none;position:absolute;width:32px;height:32px;border-radius:50%;border:0;
- font-size:16px;cursor:pointer;z-index:2}
-#a4.preview #a4prevClose{display:block}
+/* ปุ่มปิดพรีวิว ตรึงไว้มุมขวาบนของจอ ไม่เลื่อนหายไปพร้อมกระดาษ */
+#a4prevClose{display:none;position:fixed;top:14px;right:14px;z-index:72;align-items:center;gap:6px;min-height:46px;
+ padding:0 18px 0 14px;border-radius:999px;border:0;background:#fff;color:#065f46;font-family:inherit;font-size:15px;
+ font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.3);touch-action:manipulation}
+#a4prevClose::after{content:"";position:absolute;inset:-12px}
+#a4prevClose:hover{background:#ecfdf5}
+#a4prevClose:focus-visible{outline:3px solid #fde68a;outline-offset:3px}
+#a4prevBackdrop.show + #a4prevClose{display:inline-flex}
 @media print{#a4prevClose{display:none!important;visibility:hidden!important}#a4prevBackdrop{display:none!important}}
 #a4 .a4head{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(120deg,#059669,#34d399);
  color:#fff;border-radius:16px;padding:14px 18px}
@@ -400,9 +423,9 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
 </div>
 
 <!-- MODAL -->
-<div class="ov" id="ov" onclick="if(event.target===this)closeM()">
- <div class="modal">
-  <div class="mhead"><button class="x" onclick="closeM()">✕</button>
+<div class="ov" id="ov">
+ <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+  <div class="mhead"><button type="button" class="x" onclick="closeM()" aria-label="ปิดหน้าต่าง" title="ปิดหน้าต่าง (Esc)"><span class="xi">✕</span><span class="xl">ปิด</span></button>
    <div id="mno" style="font-size:12.3px;opacity:.9"></div><h3 id="mtitle"></h3>
    <div id="mbadges" style="margin-top:8px;display:flex;gap:7px;flex-wrap:wrap"></div></div>
   <div class="mbody">
@@ -425,13 +448,17 @@ padding:20px;text-align:center;box-shadow:var(--sh)}
     <div class="sec" style="margin-top:17px"><h4>🔄 ไทม์สแตมป์เรียลไทม์</h4><dl class="kv" id="mts"></dl></div>
    </div>
   </div>
+  <div class="mfoot">
+   <button type="button" class="btn" onclick="closeM()">✕ ปิดหน้าต่าง</button>
+   <small>หรือแตะพื้นที่นอกกรอบ<span class="kb"> · กด Esc</span></small>
+  </div>
  </div>
 </div>
 
 <!-- A4 -->
 <div id="a4prevBackdrop" onclick="closePreview()"></div>
+<button type="button" id="a4prevClose" onclick="closePreview()" aria-label="ปิดพรีวิว" title="ปิดพรีวิว (Esc)"><span style="font-size:18px;line-height:1">✕</span> ปิดพรีวิว</button>
 <div id="a4">
- <button class="x" id="a4prevClose" onclick="closePreview()" style="position:absolute;top:14px;right:14px;background:#0f2e1d33;color:#0f2e1d">✕</button>
  <div class="a4head">
   <div class="a4org"><img src="logo.png" onerror="this.style.display='none'">
    <div><div class="a4orgname">คณะวิศวกรรมศาสตร์ มหาวิทยาลัยมหาสารคาม</div>
@@ -906,8 +933,16 @@ function openM(i){
   }
   else{bf.textContent='📎 ยังไม่มีไฟล์บันทึกข้อความ';bf.onclick=()=>alert('ยังไม่ได้แนบลิงก์ไฟล์ในคอลัมน์ "ไฟล์ข้อมูล"')}
   $('#bstamp').style.display=CONFIG.SCAN_URL?'block':'none';
-  location.hash='doc='+encodeURIComponent(r.key);
+  const newHash='#doc='+encodeURIComponent(r.key);
+  const wasOpen=$('#ov').classList.contains('show');
+  if(location.hash!==newHash){
+    if(wasOpen)history.replaceState(null,'',newHash);   // สลับเรื่องขณะกรอบเปิดอยู่ ไม่เพิ่มประวัติซ้อน
+    else{location.hash=newHash;PUSHED=true}             // เพิ่มประวัติหนึ่งก้าว ให้ปุ่มย้อนกลับปิดกรอบได้
+  }
+  if(!wasOpen)LAST_FOCUS=document.activeElement;
+  $('#ov .modal').scrollTop=0;                 // เปิดเรื่องใหม่ให้เริ่มที่หัวกรอบเสมอ
   $('#ov').classList.add('show');document.body.style.overflow='hidden';
+  setTimeout(()=>{try{$('#ov .x').focus({preventScroll:true})}catch(e){}},60);
 }
 function advice(r){if(r.elapsed>=120)return'ยกระดับรายงานคณบดี + ติดตามรายวัน (เร่งด่วนสูงสุด)';
  if(r.elapsed>=90)return'ทำบันทึกเร่งรัดเป็นลายลักษณ์อักษร';
@@ -941,8 +976,32 @@ function copyLink(){if(!CUR)return;
  const link=trackLink(CUR);
  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(link).then(()=>alert('คัดลอกลิงก์ติดตามแล้ว ✔')).catch(()=>prompt('คัดลอกลิงก์นี้',link))}
  else prompt('คัดลอกลิงก์นี้',link)}
-function closeM(){$('#ov').classList.remove('show');document.body.style.overflow='';history.replaceState(null,'',location.pathname)}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeM();closePreview()}});
+let LAST_FOCUS=null,PUSHED=false;
+/* fromHistory = ปิดเพราะผู้ใช้กดปุ่มย้อนกลับของเบราว์เซอร์/มือถือ จึงไม่ต้องแก้ URL ซ้ำ */
+function closeM(fromHistory){
+  if(!$('#ov').classList.contains('show'))return;
+  $('#ov').classList.remove('show');document.body.style.overflow='';
+  if(fromHistory!==true&&location.hash){
+    // เปิดกรอบเองจากหน้านี้ → ถอยประวัติกลับหนึ่งก้าว ปุ่มย้อนกลับจะได้ไม่ต้องกดซ้ำหลายครั้ง
+    if(PUSHED)history.back(); else history.replaceState(null,'',location.pathname+location.search);
+  }
+  PUSHED=false;
+  if(LAST_FOCUS&&LAST_FOCUS.focus){try{LAST_FOCUS.focus({preventScroll:true})}catch(e){}}
+  LAST_FOCUS=null;
+}
+/* Esc ปิดทีละชั้น: ถ้าพรีวิวเปิดทับอยู่ ปิดพรีวิวก่อน กดอีกครั้งจึงปิดกรอบรายละเอียด */
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if($('#a4').classList.contains('preview'))closePreview();
+  else closeM();
+});
+/* ปิดเมื่อแตะพื้นที่มืดนอกกรอบ — ต้องกดลงและปล่อยบนพื้นที่มืดทั้งคู่
+   กันกรอบปิดเองตอนผู้ใช้ลากคลุมข้อความในกรอบแล้วเผลอปล่อยเมาส์ด้านนอก */
+(function(){
+  const ov=$('#ov');let downOnBackdrop=false;
+  ov.addEventListener('pointerdown',e=>{downOnBackdrop=(e.target===ov)});
+  ov.addEventListener('click',e=>{if(downOnBackdrop&&e.target===ov)closeM();downOnBackdrop=false});
+})();
 
 /* ========= ใบปะหน้า A4 ========= */
 function buildA4(r){
@@ -972,8 +1031,9 @@ function buildA4(r){
  $('#a4d').textContent=fFull(new Date());
 }
 function printA4(){if(!CUR)return;closePreview();buildA4(CUR);setTimeout(()=>window.print(),260)}
-function previewA4(){if(!CUR)return;buildA4(CUR);$('#a4').classList.add('preview');
- $('#a4prevBackdrop').classList.add('show');document.body.style.overflow='hidden'}
+function previewA4(){if(!CUR)return;buildA4(CUR);$('#a4').classList.add('preview');$('#a4').scrollTop=0;
+ $('#a4prevBackdrop').classList.add('show');document.body.style.overflow='hidden';
+ setTimeout(()=>{try{$('#a4prevClose').focus({preventScroll:true})}catch(e){}},60)}
 function closePreview(){$('#a4').classList.remove('preview');$('#a4prevBackdrop').classList.remove('show');
  if(!$('#ov').classList.contains('show'))document.body.style.overflow=''}
 function saveQR(){
@@ -1212,6 +1272,11 @@ loadSummary();
 /* โหลดวันหยุดจากชีตก่อน แล้วค่อยคำนวณ จะได้ไม่ต้องคิดใหม่สองรอบ */
 loadHolidays().then(()=>loadData()).then(()=>{openFromHash();openRateFromHash()});
 window.addEventListener('hashchange',()=>{
+  // กดย้อนกลับขณะเปิดกรอบอยู่ → ปิดกรอบ (เดิมหน้าจอค้างอยู่ที่กรอบ ต้องหาปุ่ม ✕ อย่างเดียว)
+  if(location.hash.indexOf('#doc=')!==0){
+    if($('#a4').classList.contains('preview'))closePreview();
+    closeM(true);
+  }
   if(location.hash.indexOf('#doc=')===0)openFromHash();
   if(location.hash.indexOf('#rate=')===0)openRateFromHash();
 });
