@@ -784,6 +784,10 @@ function stateOf(doc, key){
   const v = String(doc.owners[key] || '').trim();
   if (v === SKIP_TEXT) return 'skip';
   if (v) return 'done';
+  // ช่องว่างก่อนขั้นตอนที่ประทับแล้ว = ขั้นตอนที่ผู้ดูแลเพิ่มภายหลัง เรื่องนี้ผ่านจุดนั้นไปแล้ว
+  let last = -1;
+  ALL_STAGES.forEach((s, i) => { if (String(doc.owners[s.key] || '').trim()) last = i; });
+  if (ALL_STAGES.findIndex(s => s.key === key) < last) return 'skip';
   if (doc.nextStage === key) return 'now';
   return 'wait';
 }
@@ -829,8 +833,10 @@ function renderDoc(doc){
 
     const first = doc.actionable[0];
     actions += '<button class="warnb mt" onclick="stamp(\'' + jss(first) + '\',\'REJECT\')">↩ ตีกลับให้แก้ไข</button>';
-    if (doc.actionable.indexOf('คณบดี') !== -1 || IS_ADMIN) {
-      const ck = doc.actionable.indexOf('คณบดี') !== -1 ? 'คณบดี' : first;
+    // ปุ่มยกเลิกเรื่อง: ขั้นตอนที่ผู้ดูแลตั้งให้ "ยกเลิกเรื่องได้" หรือผู้ดูแลระบบสูงสุด
+    const cancelKey = doc.actionable.find(k => (ALL_STAGES.find(s => s.key === k) || {}).cancel);
+    if (cancelKey || IS_ADMIN) {
+      const ck = cancelKey || first;
       actions += '<button class="dangerb mt" onclick="stamp(\'' + jss(ck) + '\',\'CANCEL\')">✕ ยกเลิกเรื่อง</button>';
     }
   } else if (doc.blockReason) {

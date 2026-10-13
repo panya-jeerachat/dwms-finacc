@@ -553,11 +553,47 @@ const SHEET_ID = CONFIG.SHEET_ID, GID = CONFIG.GID, SLA = CONFIG.SLA;
    MINS  = เวลาที่ประหยัดได้ต่อหนึ่งเรื่อง (นาที) */
 const PAPER=30, CO2=0.0086, MINS=45;
 
-/* ลำดับ 9 ขั้นตอน — ต้องเรียงตรงกับคอลัมน์ F ถึง N ในชีต */
-const STEPS=['ผู้รับ','ฝ่ายควบคุมงบประมาณ','หัวหน้ากลุ่มงาน','ฝ่ายบุคคล','หัวหน้าสำนักงานเลขานุการคณบดี',
-             'ผู้บริหาร','คณบดี','ธุรการออกเลขหนังสือ','คืนเรื่องให้ฝ่ายการเงิน'];
-const STEP_COLS=[6,7,8,9,10,11,12,13,14];   // ตำแหน่งคอลัมน์ของแต่ละขั้นตอน (A=1)
-const NSTEP=STEPS.length;
+/* ── ขั้นตอนการเสนอหนังสือ ──
+   ผู้ดูแลเพิ่ม/ลด/เรียงลำดับขั้นตอนได้เองจากหน้าผู้ดูแล ระบบเก็บไว้ในแท็บ Stages ของชีต
+   หน้านี้อ่านแท็บนั้นมาใช้ และหาคอลัมน์จาก "ชื่อหัวคอลัมน์" แทนตำแหน่งตายตัว
+   ถ้าอ่านแท็บ Stages ไม่ได้ จะใช้ 9 ขั้นตอนเดิม (คอลัมน์ F–N) ไปก่อน */
+const DEFAULT_STEPS=[
+  {key:'ผู้รับ',label:'ผู้รับ',col:6},
+  {key:'ฝ่ายควบคุมงบประมาณ',label:'ฝ่ายควบคุมงบประมาณ',col:7},
+  {key:'หัวหน้ากลุ่มงาน',label:'หัวหน้ากลุ่มงาน',col:8},
+  {key:'ฝ่ายบุคคล',label:'ฝ่ายบุคคล',col:9},
+  {key:'หัวหน้าสำนักงานเลขานุการคณบดี',label:'หัวหน้าสำนักงานเลขานุการคณบดี',col:10,aliases:['หัวหน้าสำนักงานเลขาคณบดี']},
+  {key:'ผู้บริหาร',label:'ผู้บริหาร',col:11},
+  {key:'คณบดี',label:'คณบดี',col:12},
+  {key:'ธุรการออกเลขหนังสือ',label:'ธุรการออกเลขหนังสือ',col:13,issueNo:true},
+  {key:'คืนเรื่องที่อนุมัติแล้วให้ฝ่ายการเงิน',label:'คืนเรื่องให้ฝ่ายการเงิน',col:14,aliases:['คืนเรื่องให้ฝ่ายการเงิน']}];
+let STAGE_CFG=null;                 // ขั้นตอนจากแท็บ Stages (เฉพาะที่ใช้งาน เรียงแล้ว)
+let STEPS=DEFAULT_STEPS.map(s=>s.label);
+let STEP_COLS=DEFAULT_STEPS.map(s=>s.col);   // ตำแหน่งคอลัมน์ของแต่ละขั้นตอน (A=1)
+let NSTEP=STEPS.length;
+let ISSUE_COL=13;                   // คอลัมน์เลขที่หนังสือที่ธุรการออก
+/* ตำแหน่งคอลัมน์อื่น — หาจากหัวตารางทุกครั้ง ถ้าไม่เจอใช้ตำแหน่งเดิม */
+let C={start:1,no:2,subj:3,owner:4,dep:5,status:15,note:16,cat:17,file:18,fin:19,cat2:26,updAt:28,updBy:29};
+const HEAD_NAMES={start:['วันที่เริ่มงาน'],no:['หมายเลขหนังสือ'],subj:['เรื่อง'],owner:['ชื่อผู้รับเรื่อง'],
+  dep:['จากฝ่าย/ส่วนงาน'],status:['สถานะ'],note:['หมายเหตุ'],cat:['ประเภท'],file:['ไฟล์ข้อมูล','ไฟล์แนบ'],
+  fin:['วันที่งานสำเร็จ/ส่งคืนหนังสือไปยังเจ้าของเรื่อง']};
+
+/* อ่านแท็บ Stages — คอลัมน์: ลำดับ · หัวคอลัมน์ · ชื่อที่แสดง · ไอคอน · ประเภทช่อง · ยกเลิกได้ · ใช้งาน · ชื่อเดิม */
+let STAGES_AT=0;
+function loadStages(force){
+  if(!force&&STAGES_AT&&Date.now()-STAGES_AT<120000)return Promise.resolve();   // อ่านใหม่ทุก 2 นาที
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Stages&headers=1&_=${Date.now()}`;
+  return fetch(url).then(r=>r.text()).then(t=>{
+    const j=JSON.parse(t.substring(t.indexOf('{'),t.lastIndexOf('}')+1));
+    const v=c=>c?clean(c.f??c.v):'';
+    const list=(j.table.rows||[]).map(r=>{const c=r.c||[];return{
+      order:parseFloat(v(c[0]))||999,key:v(c[1]),label:v(c[2])||v(c[1]),
+      issueNo:/เลข/.test(v(c[4])),active:!v(c[6])||/^(ใช่|yes|true|y|1|✓|✔)$/i.test(v(c[6])),
+      aliases:v(c[7])?v(c[7]).split(',').map(x=>clean(x)).filter(Boolean):[]}})
+      .filter(s=>s.key&&s.active).sort((a,b)=>a.order-b.order);
+    if(list.length){STAGE_CFG=list;STAGES_AT=Date.now()}
+  }).catch(()=>{});   // ไม่มีแท็บนี้ก็ใช้ขั้นตอนเดิม
+}
 
 const TIERS=[{min:120,cls:'p120',txt:'⚠ ควรติดตามเร่งด่วน (≥120 วัน)',key:'120',c:'#dc2626'},
 {min:90,cls:'p90',txt:'วิกฤตสูง (≥90 วัน)',key:'90',c:'#7f1d1d'},
@@ -666,6 +702,7 @@ function conn(ok,msg){$('#ld').classList.toggle('bad',!ok);$('#conn').textConten
 /* ========= โหลดข้อมูลสด (มีทางสำรอง 3 ชั้น) ========= */
 async function loadData(manual){
   const stamp=Date.now();
+  await loadStages(manual);
   // 1) gviz JSON
   try{
     const t=await (await fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${GID}&headers=1&_=${stamp}`)).text();
@@ -699,25 +736,43 @@ function csv2arr(s){const r=[];let f='',row=[],q=false;
  return r.filter(x=>x.some(v=>String(v).trim()))}
 
 /* ========= แปลงข้อมูลดิบเป็นรายการหนังสือ ========= */
+/* จับคู่ชื่อหัวคอลัมน์ → ตำแหน่ง แล้วตั้งค่าขั้นตอน/คอลัมน์ที่ใช้ในการคำนวณ */
+function mapColumns(header){
+  const H={};(header||[]).forEach((h,i)=>{const k=clean(h);if(k&&!(k in H))H[k]=i+1});
+  const find=names=>{for(const n of names){if(H[n])return H[n]}return 0};
+  Object.keys(HEAD_NAMES).forEach(k=>{const i=find(HEAD_NAMES[k]);if(i)C[k]=i});
+  const src=STAGE_CFG||DEFAULT_STEPS;
+  const st=src.map(s=>({label:s.label,issueNo:!!s.issueNo,
+    col:find([s.key].concat(s.aliases||[]))||(!STAGE_CFG?s.col:0)})).filter(s=>s.col);
+  if(st.length){STEPS=st.map(s=>s.label);STEP_COLS=st.map(s=>s.col);NSTEP=st.length}
+  const iss=st.find(s=>s.issueNo);ISSUE_COL=iss?iss.col:0;
+}
+
 function build(cells){
   const now=new Date();
-  // ตัดแถวหัวตารางออก
-  if(cells.length&&/วันที่เริ่ม|หมายเลขหนังสือ/.test(clean(cells[0]&&cells[0][0])+clean(cells[0]&&cells[0][1])))cells=cells.slice(1);
+  // ตัดแถวหัวตารางออก (เก็บไว้จับคู่คอลัมน์ก่อน)
+  if(cells.length&&/วันที่เริ่ม|หมายเลขหนังสือ/.test(clean(cells[0]&&cells[0][0])+clean(cells[0]&&cells[0][1]))){
+    mapColumns(cells[0]);cells=cells.slice(1);
+  } else mapColumns(null);
 
   ROWS=cells.map((c,i)=>{
     const g=n=>clean(c[n-1]);
-    if(!g(3))return null;                       // ไม่มีชื่อเรื่อง = ไม่ใช่แถวข้อมูล
+    if(!g(C.subj))return null;                  // ไม่มีชื่อเรื่อง = ไม่ใช่แถวข้อมูล
 
-    const regNo=g(2)||'-';                      // B  หมายเลขหนังสือ (เลขทะเบียน คงที่ตลอดอายุเรื่อง)
-    const issueNo=g(13);                        // M  เลขที่ธุรการออกให้ (มีทีหลัง)
-    const start=pDate(c[0]),fin=pDate(c[18]);   // A  วันที่เริ่มงาน · S วันที่งานสำเร็จ
+    const regNo=g(C.no)||'-';                   // หมายเลขหนังสือ (เลขทะเบียน คงที่ตลอดอายุเรื่อง)
+    const issueNo=ISSUE_COL?g(ISSUE_COL):'';    // เลขที่ธุรการออกให้ (มีทีหลัง)
+    const start=pDate(c[C.start-1]),fin=pDate(c[C.fin-1]);   // วันที่เริ่มงาน · วันที่งานสำเร็จ
 
     const steps=STEP_COLS.map((n,k)=>{
       const raw=g(n);
       return {label:STEPS[k],val:raw,done:nz(raw),skip:SKIP_RE.test(raw)};
     });
+    /* ช่องว่างที่อยู่ก่อนขั้นตอนที่ประทับแล้ว = ขั้นตอนที่ผู้ดูแลเพิ่มเข้ามาทีหลัง
+       เรื่องนี้ผ่านจุดนั้นไปแล้ว จึงนับว่า "ข้าม" ไม่ใช่ "รอ" */
+    let lastFilled=-1;steps.forEach((x,k)=>{if(x.val)lastFilled=k});
+    steps.forEach((x,k)=>{if(!x.val&&k<lastFilled)x.skip=true});
 
-    const status=g(15)||'ดำเนินการ';            // O สถานะ
+    const status=g(C.status)||'ดำเนินการ';      // สถานะ
     const isDone=/สำเร็จ|เสร็จ|อนุมัติแล้ว/.test(status);
     const isCancel=/ยกเลิก/.test(status);
     const closed=isDone||isCancel;
@@ -728,19 +783,19 @@ function build(cells){
       no:issueNo||regNo,                        // เลขที่แสดงเป็นหลัก
       regNo,issueNo,
       docNo:regNo,                              // เผื่อโค้ดเดิมเรียกใช้
-      subj:g(3),
-      owner:g(4)||'ไม่ระบุ',                     // D ชื่อผู้รับเรื่อง
-      dep:g(5)||'ไม่ระบุ',                       // E จากฝ่าย/ส่วนงาน
+      subj:g(C.subj),
+      owner:g(C.owner)||'ไม่ระบุ',               // ชื่อผู้รับเรื่อง
+      dep:g(C.dep)||'ไม่ระบุ',                   // จากฝ่าย/ส่วนงาน
       steps,doneCnt:steps.filter(s=>s.done||s.skip).length,
       status,isDone,isCancel,closed,
-      note:g(16),                               // P หมายเหตุ
-      cat:g(17)||g(26)||'ไม่ระบุประเภท',          // Q ประเภท · Z หมวดหมู่
-      file:g(18),                               // R ไฟล์ข้อมูล (อาจมีหลายลิงก์)
-      files:parseLinks(g(18)),
+      note:g(C.note),                           // หมายเหตุ
+      cat:g(C.cat)||g(C.cat2)||'ไม่ระบุประเภท',   // ประเภท · หมวดหมู่
+      file:g(C.file),                           // ไฟล์ข้อมูล (อาจมีหลายลิงก์)
+      files:parseLinks(g(C.file)),
       start,fin,elapsed,
       over:closed?0:Math.max(0,elapsed-SLA),
       tier:tierOf(elapsed),
-      updAt:g(28),updBy:g(29)};                 // AB อัปเดตล่าสุด · AC ผู้อัปเดต
+      updAt:g(C.updAt),updBy:g(C.updBy)};                 // AB อัปเดตล่าสุด · AC ผู้อัปเดต
   }).filter(Boolean);
 
   fillSelects();render();
